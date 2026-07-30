@@ -8,7 +8,7 @@
 - 使用 pnpm 作为包管理工具。
 - 每个函数及参数都必须有完整的文档注释。
 - 单元测试行覆盖率必须达到 100%，条件覆盖率达到 95% 以上。
-- 使用 [neuralink](https://github.com/maozy13/neuralink.git) 作为模型适配层
+- 使用 [neuralink](https://github.com/maozy13/neuralink.git) 作为模型适配层，仔细阅读代码仓库内的 README.md 了解用法。
 
 ## 流程
 

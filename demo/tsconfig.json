@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "outDir": "../dist/demo",
+    "rootDir": "."
+  },
+  "include": ["responses-api.ts"],
+  "exclude": []
+}

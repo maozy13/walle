@@ -4,20 +4,36 @@ WallE 是一个 Agent 运行时框架。
 
 ## 架构
 
-WallE 内部由以下模型构成：
-
-- LLMConnector：用于连接各种 LLM API 服务，内部使用 [neuralink](https://github.com/maozy13/neuralink.git) 作为模型适配层。
-- Tools：管理工具，仅 Agent 内部使用。提供列举工具和注册工具接口。
+WallE 深度依赖 [neuralink](https://github.com/maozy13/neuralink.git) 用于连接各种 LLM API 服务的模型适配层。
 
 ```mermaid
 classDiagram
 
 class Agent {
-    llm: LLMConnector
+    llm: Connector
     tools: Tools
-    query(model, prompt)
+    query()
 }
 ```
+
+WallE 内部包含以下组件：
+
+- Tools：用于管理工具，仅 Agent 内部使用。提供列举工具和注册工具接口。
+
+**属性：**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| llm | Connector | neuralink 模型适配器 |
+| tools | Tools | 工具集 |
+
+
+## 方法
+
+`query(model: string, input: string | Array<InputItem>, optional?: Optional): AsyncIterator<ResponseEvent, Response>` 
+
+封装 neuralink Connector 的 call 方法。直接使用 neuralink 定义的类型。
+
 
 ## 工具使用
 
@@ -36,14 +52,14 @@ User ->> Agent: 发送提示词
 
 activate Agent
   Agent ->> Agent: tools.list()
-  Agent ->> Agent: 调用模型适配层
+  Agent ->> Agent: llm.call()
   Agent ->> API: 请求选择工具
 deactivate Agent
 
 Agent ->> Agent: 执行工具
 
 activate Agent
-  Agent ->> Agent: 调用模型适配层
+  Agent ->> Agent: llm.call()
   Agent ->> API: 请求生成总结
 deactivate Agent
 
@@ -55,7 +71,6 @@ Agent ->> User: 输出总结
 Tools 是 WallE 内部的工具管理模块，提供列举工具集及注册工具的接口。
 
 WallE 内置 `bash` 工具，用于执行 CLI 命令。 `bash` 工具的设计参考 [bash](#bash)
-
 
 ## 使用示例
 ```typescript
@@ -70,7 +85,7 @@ const agent = new Agent({
 })
 
 for await event of agent.query('deepseek-v4-flash', '明天上海的天气怎么样？') {
-    console.log(event.value.delta)
+    console.log(event.delta)
 }
 
 ```
