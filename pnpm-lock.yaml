@@ -10,7 +10,7 @@ importers:
     dependencies:
       neuralink:
         specifier: github:maozy13/neuralink
-        version: https://codeload.github.com/maozy13/neuralink/tar.gz/3721eb5694da5b4f0b5db8de5a9ec67a27147852
+        version: https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416
     devDependencies:
       '@types/node':
         specifier: 24.1.0
@@ -616,8 +616,8 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  neuralink@https://codeload.github.com/maozy13/neuralink/tar.gz/3721eb5694da5b4f0b5db8de5a9ec67a27147852:
-    resolution: {tarball: https://codeload.github.com/maozy13/neuralink/tar.gz/3721eb5694da5b4f0b5db8de5a9ec67a27147852}
+  neuralink@https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416:
+    resolution: {tarball: https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416}
     version: 0.1.0
 
   package-json-from-dist@1.0.1:
@@ -1304,7 +1304,7 @@ snapshots:
 
   nanoid@3.3.16: {}
 
-  neuralink@https://codeload.github.com/maozy13/neuralink/tar.gz/3721eb5694da5b4f0b5db8de5a9ec67a27147852: {}
+  neuralink@https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416: {}
 
   package-json-from-dist@1.0.1: {}
 

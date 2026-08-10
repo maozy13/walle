@@ -11,10 +11,12 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build:neuralink": "tsc -p node_modules/neuralink/tsconfig.json",
+    "postinstall": "pnpm build:neuralink",
+    "build": "pnpm build:neuralink && tsc -p tsconfig.json",
     "demo": "pnpm build && tsc -p demo/tsconfig.json && node dist/demo/responses-api.js",
-    "test": "vitest run --coverage",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p demo/tsconfig.json"
+    "test": "pnpm build:neuralink && vitest run --coverage",
+    "typecheck": "pnpm build && tsc --noEmit -p demo/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "24.1.0",
