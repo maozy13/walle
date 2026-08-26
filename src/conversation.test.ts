@@ -9,7 +9,7 @@ import { fromModelOutput, fromUserInput } from "./conversation.js";
 describe("Conversation", () => {
   it("copies initial items, appends items, and returns detached model input", () => {
     const initial: ConversationItem[] = [{ type: "text", role: "user", text: "one" }];
-    const conversation = new Conversation(initial);
+    const conversation = new Conversation(initial, "conversation-id");
     initial[0] = { type: "text", role: "user", text: "changed" };
 
     const input = conversation.append([
@@ -29,6 +29,7 @@ describe("Conversation", () => {
     ]);
     input.length = 0;
     expect(conversation.read()).toHaveLength(5);
+    expect(conversation.id).toBe("conversation-id");
   });
 
   it("normalizes plain and every structured user input kind", () => {

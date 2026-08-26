@@ -6,16 +6,20 @@ import type {
   ConversationInput,
   ConversationItem,
 } from "./typings/conversation.js";
+import { randomUUID } from "node:crypto";
 
 /** Ordered multi-turn context owned by a WallE agent. */
 export class Conversation {
+  public readonly id: string;
   public readonly items: ConversationItem[];
 
   /**
    * Creates a conversation with optional existing items.
    * @param items Initial conversation items in chronological order.
+   * @param id Stable conversation identity; generated when omitted.
    */
-  public constructor(items: ConversationItem[] = []) {
+  public constructor(items: ConversationItem[] = [], id: string = randomUUID()) {
+    this.id = id;
     this.items = [...items];
   }
 

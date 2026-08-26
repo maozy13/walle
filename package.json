@@ -15,6 +15,7 @@
     "postinstall": "pnpm build:neuralink",
     "build": "pnpm build:neuralink && tsc -p tsconfig.json",
     "demo": "pnpm build && tsc -p demo/tsconfig.json && node dist/demo/responses-api.js",
+    "demo:memory": "pnpm build && tsc -p demo/tsconfig.json && node dist/demo/memory.js",
     "test": "pnpm build:neuralink && vitest run --coverage",
     "typecheck": "pnpm build && tsc --noEmit -p demo/tsconfig.json"
   },

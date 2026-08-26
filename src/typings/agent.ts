@@ -1,6 +1,7 @@
 import type { Connector, InputItem, Optional, Response } from "neuralink";
 import type { Conversation } from "../conversation.js";
 import type { Tools } from "../tools/tools.js";
+import type { Memory } from "../memory.js";
 
 /** Options used to create a WallE agent. */
 export interface AgentOptions {
@@ -10,6 +11,8 @@ export interface AgentOptions {
   conversation?: Conversation;
   /** Optional tool registry; the default registry contains the built-in bash tool. */
   tools?: Tools;
+  /** Memory whose adapters are exposed as one tool when the Agent is constructed. */
+  memory?: Memory;
   /** Working directory used by the default bash tool. */
   cwd?: string;
 }

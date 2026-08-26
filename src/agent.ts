@@ -12,6 +12,7 @@ import {
 } from "./conversation.js";
 import { BashTool } from "./tools/bash.js";
 import { Tools } from "./tools/tools.js";
+import type { Memory } from "./memory.js";
 import type {
   AgentEvent,
   AgentInput,
@@ -25,16 +26,19 @@ export class Agent {
   public readonly llm: AgentOptions["llm"];
   public readonly conversation: Conversation;
   public readonly tools: Tools;
+  public readonly memory?: Memory;
 
   /**
    * Creates an agent backed by a NeuralLink-compatible connector.
-   * @param options Model connector, conversation, tools, and working directory.
+   * @param options Model connector, conversation, tools, memory, and working directory.
    */
   public constructor(options: AgentOptions) {
     this.llm = options.llm;
     this.conversation = options.conversation ?? new Conversation();
     this.tools = options.tools
       ?? new Tools([new BashTool({ cwd: options.cwd })]);
+    this.memory = options.memory;
+    if (this.memory !== undefined) this.tools.register(this.memory.inject());
   }
 
   /**
@@ -49,22 +53,38 @@ export class Agent {
     input: AgentInput,
     optional: AgentQueryOptions = {},
   ): AgentQuery {
+    const startedAt = Date.now();
+    const firstTaskItem = this.conversation.items.length;
     let modelInput = this.conversation.append(fromUserInput(input));
     const modelOptions = this.createModelOptions(optional);
 
-    while (true) {
-      const response = yield* this.call(model, modelInput, modelOptions);
-      this.conversation.append(fromModelOutput(response.output));
-      const calls = response.output.filter(
-        (item): item is ResponseFunctionCall => item.type === "function_call",
-      );
-      if (response.status !== "completed" || calls.length === 0) return response;
+    try {
+      while (true) {
+        const response = yield* this.call(model, modelInput, modelOptions);
+        this.conversation.append(fromModelOutput(response.output));
+        const calls = response.output.filter(
+          (item): item is ResponseFunctionCall => item.type === "function_call",
+        );
+        if (response.status !== "completed" || calls.length === 0) return response;
 
-      const outputs = await Promise.all(calls.map((call) => this.execute(call)));
-      modelInput = this.conversation.append(outputs.map((output) => ({
-        ...output,
-        role: "tool" as const,
-      })));
+        const outputs = await Promise.all(calls.map((call) => this.execute(call)));
+        modelInput = this.conversation.append(outputs.map((output) => ({
+          ...output,
+          role: "tool" as const,
+        })));
+      }
+    } finally {
+      await this.memory?.update({
+        conversation: {
+          id: this.conversation.id,
+          items: structuredClone(this.conversation.items.slice(firstTaskItem)),
+        },
+        metadata: {
+          model,
+          startedAt,
+          completedAt: Date.now(),
+        },
+      });
     }
   }
 

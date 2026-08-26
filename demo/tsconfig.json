@@ -5,6 +5,6 @@
     "outDir": "../dist/demo",
     "rootDir": "."
   },
-  "include": ["responses-api.ts"],
+  "include": ["*.ts"],
   "exclude": []
 }
