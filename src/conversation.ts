@@ -27,7 +27,7 @@ export class Conversation {
    * Converts the retained conversation to NeuralLink model input.
    * @returns A detached NeuralLink-compatible input array.
    */
-  public read(): ConversationInput {
+  public context(): ConversationInput {
     return this.items.flatMap(toInputItem);
   }
 
@@ -38,7 +38,7 @@ export class Conversation {
    */
   public append(items: ConversationItem[]): ConversationInput {
     this.items.push(...items);
-    return this.read();
+    return this.context();
   }
 }
 

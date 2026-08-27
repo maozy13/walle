@@ -20,8 +20,8 @@ class Agent {
 
 WallE 内部包含以下组件：
 
-- Tools：用于管理工具，仅 Agent 内部使用。提供列举工具和注册工具接口。参考 [conversation.md](conversation.md)
-- Conversation: 用于管理 Agent 会话。参考 [tools.md](tools.md)
+- Tools：用于管理工具，仅 Agent 内部使用。提供列举工具和注册工具接口。参考 [tools.md](tools.md)
+- Conversation: 用于管理 Agent 会话。参考 [conversation.md](conversation.md)
 
 ### Agent
 

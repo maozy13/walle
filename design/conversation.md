@@ -7,7 +7,7 @@ classDiagram
 
 class Conversation {
     items: Array~ConversationItem~
-    read()
+    context()
     append()
 }
 ```
@@ -20,11 +20,11 @@ class Conversation {
 
 **方法**
 
-`read()`
+`.context()`
 
 读取会话列表并转换为适配 neurallink 的 `call()` 方法的入参结构。
 
-`append(items: Array<ConversationItem>)`
+`.append(items: Array<ConversationItem>)`
 
 向追加对应类型的 Conversation Item。返回追加后的完整 conversation。
 
@@ -33,7 +33,7 @@ class Conversation {
 ### 说明
 
 - 在向模型发送请求前，总是遵循：“读取会话 -> 发送给模型“ 的流程。
-    - 执行 `.append()` 方法会返回完整会话，效果同 `.read()` 一样。此时不需要显示调用 `.read()`。
+    - 执行 `.append()` 方法会返回完整会话，效果同 `.context()` 一样。此时不需要显示调用 `.context()`。
 - 模型可能一次返回多个输出项，需要遍历每个输出项然后将 item 按顺序插入到会话。
 - 模型返回函数调用时，Agent 先将函数调用会话项插入会话，再执行函数调用并将结果追加到会话。
 

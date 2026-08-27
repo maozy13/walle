@@ -28,7 +28,7 @@ describe("Conversation", () => {
       { type: "function_call_output", call_id: "call", output: "ok" },
     ]);
     input.length = 0;
-    expect(conversation.read()).toHaveLength(5);
+    expect(conversation.context()).toHaveLength(5);
     expect(conversation.id).toBe("conversation-id");
   });
 
