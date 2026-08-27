@@ -9,6 +9,7 @@ import {
   ResponsesAPIConverter,
   Tools,
   type AgentEvent,
+  type ConversationItem,
 } from "walle";
 
 const baseUrl = "https://ark.cn-beijing.volces.com/api/v3/responses";
@@ -25,6 +26,20 @@ interface ToolExecution {
   /** Registered tool name being executed. */
   name: string;
 }
+
+/** Agent initialization options selected from the command line. */
+interface AgentCliOptions {
+  /** Optional system instructions loaded from the selected file. */
+  instructions?: string;
+  /** Optional persisted session identifier to load. */
+  sessionId?: string;
+}
+
+/** A user-visible item that can be restored in the terminal transcript. */
+type VisibleConversationItem = Extract<
+  ConversationItem,
+  { type: "text" | "image" | "file" }
+>;
 
 /** Live, replaceable terminal panel for one parallel batch of tool calls. */
 class ToolPanel {
@@ -229,26 +244,86 @@ function paint(text: string, ansi: string): string {
 }
 
 /**
- * Loads optional Agent system instructions from a CLI-selected file.
+ * Parses command-line options used to initialize the Agent.
  * @param args Command-line arguments excluding the executable and script paths.
- * @returns File content, or undefined when --instructions was not supplied.
+ * @returns Agent initialization values selected by the command line.
  */
-function loadInstructions(args: string[]): string | undefined {
+function parseAgentOptions(args: string[]): AgentCliOptions {
   const { values } = parseArgs({
     args,
     options: {
       instructions: { type: "string" },
+      session: { type: "string" },
     },
     strict: true,
     allowPositionals: false,
   });
-  if (values.instructions === undefined) return undefined;
-  const path = resolve(process.cwd(), values.instructions);
-  try {
-    return readFileSync(path, "utf8");
-  } catch (error) {
-    throw new Error(`无法读取系统提示词文件：${path}`, { cause: error });
+
+  let instructions: string | undefined;
+  if (values.instructions !== undefined) {
+    const path = resolve(process.cwd(), values.instructions);
+    try {
+      instructions = readFileSync(path, "utf8");
+    } catch (error) {
+      throw new Error(`无法读取系统提示词文件：${path}`, { cause: error });
+    }
   }
+
+  return {
+    ...(instructions === undefined ? {} : { instructions }),
+    ...(values.session === undefined ? {} : { sessionId: values.session }),
+  };
+}
+
+/**
+ * Prints the latest user/model turn loaded from a persisted session.
+ * @param agent Agent whose conversation may contain restored session items.
+ * @param sessionId CLI-selected session identifier, or undefined for a new session.
+ */
+function printSessionHistory(agent: Agent, sessionId: string | undefined): void {
+  if (sessionId === undefined) return;
+  const messages = agent.conversation.items.filter(isVisibleConversationItem);
+  if (messages.length === 0) return;
+
+  let latestTurnStart = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role !== "user") continue;
+    latestTurnStart = index;
+    break;
+  }
+  if (latestTurnStart < 0) latestTurnStart = messages.length - 1;
+  while (latestTurnStart > 0 && messages[latestTurnStart - 1]?.role === "user") {
+    latestTurnStart -= 1;
+  }
+
+  if (latestTurnStart > 0) {
+    process.stdout.write(`还有 ${latestTurnStart} 条历史消息\n\n`);
+  }
+  for (const item of messages.slice(latestTurnStart)) {
+    const title = item.role === "user" ? "你  › " : "🤖  WallE";
+    const color = item.role === "user" ? ANSI_CYAN : ANSI_GREEN;
+    process.stdout.write(`${paint(title, `${ANSI_BOLD}${color}`)}\n${conversationText(item)}\n\n`);
+  }
+}
+
+/**
+ * Checks whether a retained conversation item belongs in the visible transcript.
+ * @param item Retained conversation item to inspect.
+ * @returns Whether the item represents user- or model-visible content.
+ */
+function isVisibleConversationItem(item: ConversationItem): item is VisibleConversationItem {
+  return item.type === "text" || item.type === "image" || item.type === "file";
+}
+
+/**
+ * Formats a visible conversation item for terminal output.
+ * @param item Visible text, image, or file conversation item.
+ * @returns Human-readable terminal content.
+ */
+function conversationText(item: VisibleConversationItem): string {
+  if (item.type === "text") return item.text;
+  if (item.type === "image") return `[图片] ${item.image}`;
+  return `[文件] ${item.file}`;
 }
 
 /**
@@ -275,7 +350,7 @@ async function runTurn(agent: Agent, printer: AgentPrinter, input: string): Prom
  * @returns Completion after the user exits the REPL.
  */
 async function main(): Promise<void> {
-  const instructions = loadInstructions(process.argv.slice(2));
+  const { instructions, sessionId } = parseAgentOptions(process.argv.slice(2));
   const apiKey = process.env.ARK_API_KEY;
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new Error("缺少 ARK_API_KEY；模型调用必须使用真实 API");
@@ -287,7 +362,7 @@ async function main(): Promise<void> {
   );
   const panel = new ToolPanel();
   const tools = new DisplayTools(panel, [new BashTool({ cwd: process.cwd() })]);
-  const agent = new Agent({ llm, tools, instructions });
+  const agent = new Agent({ llm, tools, instructions, sessionId });
   const printer = new AgentPrinter();
   const readline = createInterface({
     input: process.stdin,
@@ -304,6 +379,7 @@ async function main(): Promise<void> {
       + `${paint("│  输入 /exit 或 /quit 结束会话        │", ANSI_CYAN)}\n`
       + `${paint("╰──────────────────────────────────────╯", ANSI_CYAN)}\n`,
     );
+    printSessionHistory(agent, sessionId);
     readline.setPrompt(`${paint("\n你  › ", `${ANSI_BOLD}${ANSI_CYAN}`)}`);
     readline.prompt();
     for await (const line of readline) {

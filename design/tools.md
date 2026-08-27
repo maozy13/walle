@@ -107,7 +107,7 @@ WallE 内置以下工具：
  name: bash
  description: |
     在当前工作目录执行一条 bash 命令，返回 stdout 和 stderr。
-    出于安全考虑，只支持：ls、find、grep 等文件 read-only 命令，但禁止使用 edit、delete 类参数
+    出于安全考虑，只允许在当前工作目录下执行以下命令：ls、find、grep 等 read-only 命令，但禁止使用 edit、delete 类参数；允许使用 sed、echo、touch 等编辑命令以及 mkdir、mv 等目录操作。
     严禁执行任何权限命令：su、sudo、chmod、chown 等
     严禁执行任何删除命令：rm、rmdir 等
     严禁执行任何磁盘操作命令：mount、unmount、fdisk 等，但可以执行 du、df 等查看操作。

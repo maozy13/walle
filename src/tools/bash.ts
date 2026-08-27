@@ -5,15 +5,20 @@ const allowedCommands = new Set([
   "cat",
   "df",
   "du",
+  "echo",
   "file",
   "find",
   "grep",
   "head",
   "ls",
+  "mkdir",
+  "mv",
   "pwd",
   "rg",
+  "sed",
   "stat",
   "tail",
+  "touch",
   "wc",
 ]);
 
@@ -43,22 +48,22 @@ export interface BashToolOptions {
   executor?: BashExecutor;
 }
 
-/** Read-only command tool constrained by an executable and argument denylist. */
+/** Constrained command tool supporting reads, selected edits, and directory operations. */
 export class BashTool implements ToolDef {
   public readonly schema = {
     type: "function" as const,
     name: "bash",
     description: [
-      "在当前工作目录执行一条只读命令并返回 stdout 和 stderr。",
-      "仅支持 cat、df、du、file、find、grep、head、ls、pwd、rg、stat、tail、wc。",
-      "不支持 shell 运算符、重定向、命令替换或任何写入与权限操作。",
+      "在当前工作目录执行一条命令并返回 stdout 和 stderr。",
+      "仅支持 cat、df、du、echo、file、find、grep、head、ls、mkdir、mv、pwd、rg、sed、stat、tail、touch、wc；其中 sed 可用于编辑文件，echo 可用于输出内容，touch 可用于创建文件或更新时间戳，mkdir 可用于创建目录，mv 可用于移动或重命名路径，其他命令仅允许只读用法。",
+      "不支持 shell 运算符、重定向或命令替换；严禁权限命令、删除命令和磁盘管理命令。",
     ].join(" "),
     parameters: {
       type: "object" as const,
       properties: {
         command: {
           type: "string" as const,
-          description: "一条使用白名单可执行文件的只读命令",
+          description: "一条使用白名单可执行文件的命令",
         },
       },
       required: ["command"],

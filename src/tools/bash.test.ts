@@ -53,6 +53,33 @@ describe("BashTool", () => {
     );
   });
 
+  it.each([
+    ["echo generated content", "echo", ["generated", "content"]],
+    ["sed -i s/old/new/g file.txt", "sed", ["-i", "s/old/new/g", "file.txt"]],
+    ["touch created.txt", "touch", ["created.txt"]],
+  ])("allows selected content command: %s", async (command, executable, args) => {
+    const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
+    const bash = new BashTool({ cwd: "/workspace", executor });
+
+    await bash.fc({ command });
+
+    expect(executor).toHaveBeenCalledWith(executable, args, "/workspace");
+    expect(bash.schema.description).toContain(executable);
+  });
+
+  it.each([
+    ["mkdir -p archive", "mkdir", ["-p", "archive"]],
+    ["mv draft.txt archive/final.txt", "mv", ["draft.txt", "archive/final.txt"]],
+  ])("allows selected directory command: %s", async (command, executable, args) => {
+    const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
+    const bash = new BashTool({ cwd: "/workspace", executor });
+
+    await bash.fc({ command });
+
+    expect(executor).toHaveBeenCalledWith(executable, args, "/workspace");
+    expect(bash.schema.description).toContain(executable);
+  });
+
   it("executes a real read-only command with the default executor", async () => {
     const output = await new BashTool().fc({ command: "pwd" });
 
