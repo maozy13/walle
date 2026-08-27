@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createInterface } from "node:readline";
+import { parseArgs } from "node:util";
 import {
   Agent,
   BashTool,
@@ -226,6 +229,29 @@ function paint(text: string, ansi: string): string {
 }
 
 /**
+ * Loads optional Agent system instructions from a CLI-selected file.
+ * @param args Command-line arguments excluding the executable and script paths.
+ * @returns File content, or undefined when --instructions was not supplied.
+ */
+function loadInstructions(args: string[]): string | undefined {
+  const { values } = parseArgs({
+    args,
+    options: {
+      instructions: { type: "string" },
+    },
+    strict: true,
+    allowPositionals: false,
+  });
+  if (values.instructions === undefined) return undefined;
+  const path = resolve(process.cwd(), values.instructions);
+  try {
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    throw new Error(`无法读取系统提示词文件：${path}`, { cause: error });
+  }
+}
+
+/**
  * Runs one user turn against the persistent Agent conversation.
  * @param agent Agent shared by every REPL turn.
  * @param printer Incremental Agent output renderer.
@@ -249,6 +275,7 @@ async function runTurn(agent: Agent, printer: AgentPrinter, input: string): Prom
  * @returns Completion after the user exits the REPL.
  */
 async function main(): Promise<void> {
+  const instructions = loadInstructions(process.argv.slice(2));
   const apiKey = process.env.ARK_API_KEY;
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new Error("缺少 ARK_API_KEY；模型调用必须使用真实 API");
@@ -260,7 +287,7 @@ async function main(): Promise<void> {
   );
   const panel = new ToolPanel();
   const tools = new DisplayTools(panel, [new BashTool({ cwd: process.cwd() })]);
-  const agent = new Agent({ llm, tools });
+  const agent = new Agent({ llm, tools, instructions });
   const printer = new AgentPrinter();
   const readline = createInterface({
     input: process.stdin,

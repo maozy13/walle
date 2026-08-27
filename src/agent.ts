@@ -23,6 +23,7 @@ import type {
 
 /** WallE runtime coordinating NeuralLink conversations with registered tools. */
 export class Agent {
+  public readonly instructions: string;
   public readonly llm: AgentOptions["llm"];
   public readonly conversation: Conversation;
   public readonly tools: Tools;
@@ -30,9 +31,10 @@ export class Agent {
 
   /**
    * Creates an agent backed by a NeuralLink-compatible connector.
-   * @param options Model connector, conversation, tools, memory, and working directory.
+   * @param options Model connector, system instructions, conversation, tools, memory, and paths.
    */
   public constructor(options: AgentOptions) {
+    this.instructions = options.instructions ?? "";
     this.llm = options.llm;
     this.conversation = options.conversation
       ?? new Conversation([], options.sessionId, options.cwd);
@@ -119,8 +121,12 @@ export class Agent {
    * @returns Model options containing the Agent's current tools.
    */
   private createModelOptions(optional: AgentQueryOptions): Optional {
+    const instructions = [this.instructions, optional.instructions]
+      .filter((value): value is string => value !== undefined && value !== "")
+      .join("\n\n");
     return {
       ...optional,
+      ...(instructions === "" ? {} : { instructions }),
       tools: this.tools.list(),
     };
   }

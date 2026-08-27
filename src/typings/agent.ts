@@ -7,6 +7,8 @@ import type { Memory } from "../memory.js";
 export interface AgentOptions {
   /** NeuralLink connector used for every model request. */
   llm: Pick<Connector<unknown, unknown>, "call">;
+  /** System instructions injected into every NeuralLink model call. */
+  instructions?: string;
   /** Optional conversation container; a new empty conversation is used by default. */
   conversation?: Conversation;
   /** Optional tool registry; the default registry contains the built-in bash tool. */

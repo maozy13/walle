@@ -10,6 +10,7 @@ WallE 深度依赖 [neuralink](https://github.com/maozy13/neuralink.git) 用于�
 classDiagram
 
 class Agent {
+    instructions: string
     llm: Connector
     conversation: Conversation
     tools: Tools
@@ -31,6 +32,7 @@ Agent Runtime 主程序。
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| instructions | string | 系统提示词 |
 | llm | Connector | neuralink 模型适配器 |
 | conversation | Conversation | 会话对象 |
 | tools | Tools | 工具集 |
@@ -47,7 +49,8 @@ Agent 支持的 Agentic Loop 类型：
 
 ### 构造函数
 
-初始化 Agent 对象时，如果用户在构造函数中传递了 `sessionId` 属性，则从 `{cwd}/sessions/{sessionId}/CONVERSATION.md` 读取会话项列表并转换为 Conversaion 对象。
+1、初始化 Agent 对象时，如果用户在构造函数中传递了 `sessionId` 属性，则从 `{cwd}/sessions/{sessionId}/CONVERSATION.md` 读取会话项列表并转换为 Conversaion 对象。
+2、初始化 Agent 时，可以传入系统提示词 `instructions`，在每次和模型对话时都会注入到 neruallink 的系统提示词参数中。
 
 ### 类型
 

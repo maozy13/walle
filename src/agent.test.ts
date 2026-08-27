@@ -218,6 +218,26 @@ describe("Agent", () => {
     ]);
   });
 
+  it("injects constructor and query instructions into every model round", async () => {
+    const selected = functionCall("call-1", "value");
+    const call = vi.fn()
+      .mockImplementationOnce(() => stream(response([selected])))
+      .mockImplementationOnce(() => stream(response([])));
+    const agent = new Agent({
+      llm: { call },
+      tools: new Tools([tool("value", () => "ok")]),
+      instructions: "Agent system instructions",
+    });
+
+    await consume(agent.query("model", "run", { instructions: "Turn instructions" }));
+
+    expect(agent.instructions).toBe("Agent system instructions");
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call.mock.calls.every((invocation) => (
+      invocation[2].instructions === "Agent system instructions\n\nTurn instructions"
+    ))).toBe(true);
+  });
+
   it("retrieves memory and updates adapters with only the current task", async () => {
     const retrieve = vi.fn(() => ({ language: "中文" }));
     const update = vi.fn();
