@@ -6,7 +6,6 @@ import {
   ResponsesAPIConverter,
   Tools,
   type AgentEvent,
-  type ResponseFunctionCall,
 } from "walle";
 
 const baseUrl = "https://ark.cn-beijing.volces.com/api/v3/responses";
@@ -14,114 +13,70 @@ const model = "doubao-seed-evolving";
 const ANSI_RESET = "\u001B[0m";
 const ANSI_BOLD = "\u001B[1m";
 const ANSI_CYAN = "\u001B[36m";
-const ANSI_DIM = "\u001B[2m";
 const ANSI_GREEN = "\u001B[32m";
 const ANSI_MAGENTA = "\u001B[35m";
 const ANSI_RED = "\u001B[31m";
 
-/** Mutable terminal representation of one tool call. */
-interface ToolRecord {
-  /** Provider item identifier when one was supplied. */
-  itemId?: string;
-  /** Agent-provided call identifier. */
-  callId: string;
-  /** Registered tool name. */
+/** One tool execution currently displayed in the terminal. */
+interface ToolExecution {
+  /** Registered tool name being executed. */
   name: string;
-  /** Agent-provided JSON argument text. */
-  arguments: string;
-  /** Current execution status. */
-  status: "等待执行" | "执行中" | "已完成" | "执行失败";
-  /** Tool result or failure message. */
-  result?: unknown;
 }
 
 /** Live, replaceable terminal panel for one parallel batch of tool calls. */
 class ToolPanel {
-  private readonly records: ToolRecord[] = [];
-  private activeExecutions = 0;
+  private readonly active: ToolExecution[] = [];
+  private executionCount = 0;
   private savedCursor = false;
   private collapseVersion = 0;
 
   /**
-   * Adds or updates tool calls emitted by the Agent.
-   * @param calls Complete function-call snapshots from the current response.
-   */
-  public sync(calls: ResponseFunctionCall[]): void {
-    for (const call of calls) {
-      const existing = this.records.find(({ callId }) => callId === call.call_id);
-      if (existing === undefined) {
-        this.records.push({
-          itemId: call.id,
-          callId: call.call_id,
-          name: call.name,
-          arguments: call.arguments,
-          status: "等待执行",
-        });
-      } else {
-        existing.name = call.name;
-        existing.arguments = call.arguments;
-      }
-    }
-    this.render();
-  }
-
-  /**
-   * Marks the matching pending tool as executing.
+   * Adds a tool to the active execution display.
    * @param name Registered tool name.
-   * @param parameters JSON-encoded tool arguments.
-   * @returns Mutable record associated with this execution.
+   * @returns Execution token used to mark this tool complete.
    */
-  public begin(name: string, parameters: string): ToolRecord {
-    const record = this.records.find((candidate) => (
-      candidate.status === "等待执行"
-      && candidate.name === name
-      && candidate.arguments === parameters
-    )) ?? {
-      callId: `tool-${this.records.length + 1}`,
-      name,
-      arguments: parameters,
-      status: "等待执行" as const,
-    };
-    if (!this.records.includes(record)) this.records.push(record);
-    record.status = "执行中";
-    this.activeExecutions += 1;
+  public begin(name: string): ToolExecution {
+    const execution = { name };
+    this.active.push(execution);
+    this.executionCount += 1;
     this.collapseVersion += 1;
-    this.render();
-    return record;
+    if (process.stdout.isTTY) {
+      this.render();
+    } else {
+      process.stdout.write(`正在执行工具 ${name}\n`);
+    }
+    return execution;
   }
 
   /**
-   * Records one successful or failed tool result and schedules batch collapse.
-   * @param record Tool record returned by begin().
-   * @param result Tool result or normalized failure message.
-   * @param failed Whether execution failed.
+   * Removes one completed tool and schedules batch collapse.
+   * @param execution Execution token returned by begin().
    */
-  public complete(record: ToolRecord, result: unknown, failed: boolean): void {
-    record.status = failed ? "执行失败" : "已完成";
-    record.result = result === undefined ? "undefined" : result;
-    this.activeExecutions -= 1;
+  public complete(execution: ToolExecution): void {
+    const index = this.active.indexOf(execution);
+    if (index >= 0) this.active.splice(index, 1);
     this.render();
     const version = ++this.collapseVersion;
     queueMicrotask(() => {
-      if (this.activeExecutions === 0 && version === this.collapseVersion) this.collapse();
+      if (this.active.length === 0 && version === this.collapseVersion) this.collapse();
     });
   }
 
   /** Replaces the live tool details with a compact execution count. */
   private collapse(): void {
-    const summary = `${paint("✓", ANSI_GREEN)} 已执行 ${this.records.length} 次工具`;
+    const summary = `${paint("✓", ANSI_GREEN)} 已执行 ${this.executionCount} 次工具`;
     if (process.stdout.isTTY && this.savedCursor) {
       process.stdout.write(`\u001B[u\u001B[J${summary}\n`);
     } else {
-      process.stdout.write(`${this.content()}${summary}\n`);
+      process.stdout.write(`${summary}\n`);
     }
-    this.records.length = 0;
+    this.executionCount = 0;
     this.savedCursor = false;
   }
 
   /** Refreshes the replaceable tool panel in an interactive terminal. */
   private render(): void {
-    if (this.records.length === 0 || !process.stdout.isTTY) return;
+    if (!process.stdout.isTTY) return;
     if (!this.savedCursor) {
       process.stdout.write("\u001B[s");
       this.savedCursor = true;
@@ -134,16 +89,7 @@ class ToolPanel {
    * @returns Human-readable tool panel text ending in a newline.
    */
   private content(): string {
-    const tools = this.records.map((record) => JSON.stringify({
-      type: "function_call",
-      ...(record.itemId === undefined ? {} : { id: record.itemId }),
-      call_id: record.callId,
-      name: record.name,
-      arguments: parseToolArguments(record.arguments),
-      status: record.status,
-      ...(record.result === undefined ? {} : { result: record.result }),
-    }, undefined, 2)).join("\n");
-    return `${paint("🛠  工具", ANSI_CYAN)}\n${paint(tools, ANSI_DIM)}\n`;
+    return `${this.active.map(({ name }) => `正在执行工具 ${name}`).join("\n")}\n`;
   }
 }
 
@@ -162,24 +108,17 @@ class DisplayTools extends Tools {
   }
 
   /**
-   * Executes a registered tool while reporting its result to the panel.
+   * Executes a registered tool while reporting its active state to the panel.
    * @param name Registered tool name selected by the model.
    * @param parameters JSON-encoded tool arguments selected by the model.
    * @returns The registered tool's response.
    */
   public override async exec(name: string, parameters: string): Promise<unknown> {
-    const record = this.panel.begin(name, parameters);
+    const execution = this.panel.begin(name);
     try {
-      const result = await super.exec(name, parameters);
-      this.panel.complete(record, result, false);
-      return result;
-    } catch (error) {
-      this.panel.complete(
-        record,
-        { error: error instanceof Error ? error.message : String(error) },
-        true,
-      );
-      throw error;
+      return await super.exec(name, parameters);
+    } finally {
+      this.panel.complete(execution);
     }
   }
 }
@@ -191,13 +130,7 @@ class AgentPrinter {
   private section: "thinking" | "answer" | undefined;
 
   /**
-   * Creates a printer connected to the shared tool panel.
-   * @param panel Tool panel used for function-call snapshots.
-   */
-  public constructor(private readonly panel: ToolPanel) {}
-
-  /**
-   * Streams newly available reasoning, answer, and tool-call content.
+   * Streams newly available reasoning and answer content.
    * @param event WallE response event emitted during one Agent turn.
    */
   public write(event: AgentEvent): void {
@@ -227,14 +160,6 @@ class AgentPrinter {
 
     this.thinking = this.writeDelta("thinking", "💭  思考", thinking, this.thinking);
     this.answer = this.writeDelta("answer", "🤖  WallE", answer, this.answer);
-
-    const calls = event.response.output.filter(
-      (item): item is ResponseFunctionCall => item.type === "function_call",
-    );
-    if (calls.length > 0) {
-      this.finishSection();
-      this.panel.sync(calls);
-    }
 
     if (event.type !== "agent.response.changed") {
       this.finishSection();
@@ -291,19 +216,6 @@ class AgentPrinter {
 }
 
 /**
- * Parses tool arguments for friendlier terminal output without affecting execution.
- * @param parameters JSON-encoded tool arguments.
- * @returns Parsed JSON, or the original text when malformed.
- */
-function parseToolArguments(parameters: string): unknown {
-  try {
-    return JSON.parse(parameters) as unknown;
-  } catch {
-    return parameters;
-  }
-}
-
-/**
  * Applies terminal color only for interactive output.
  * @param text Text to decorate.
  * @param ansi ANSI style prefix.
@@ -349,7 +261,7 @@ async function main(): Promise<void> {
   const panel = new ToolPanel();
   const tools = new DisplayTools(panel, [new BashTool({ cwd: process.cwd() })]);
   const agent = new Agent({ llm, tools });
-  const printer = new AgentPrinter(panel);
+  const printer = new AgentPrinter();
   const readline = createInterface({
     input: process.stdin,
     output: process.stdout,
