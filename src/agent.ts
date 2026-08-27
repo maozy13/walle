@@ -34,7 +34,9 @@ export class Agent {
    */
   public constructor(options: AgentOptions) {
     this.llm = options.llm;
-    this.conversation = options.conversation ?? new Conversation();
+    this.conversation = options.conversation
+      ?? new Conversation([], options.sessionId, options.cwd);
+    if (options.sessionId !== undefined) this.conversation.read(options.sessionId);
     this.tools = options.tools
       ?? new Tools([new BashTool({ cwd: options.cwd })]);
     this.memory = options.memory;

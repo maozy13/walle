@@ -7,20 +7,33 @@ import type {
   ConversationItem,
 } from "./typings/conversation.js";
 import { randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
+
+const CONVERSATION_FILE = "CONVERSATION.md";
+const ARCHIVES_DIRECTORY = "ARCHIVES";
+const ITEM_SEPARATOR = "\n\n---\n\n";
 
 /** Ordered multi-turn context owned by a WallE agent. */
 export class Conversation {
-  public readonly id: string;
+  public id: string;
   public readonly items: ConversationItem[];
+  private readonly cwd: string;
 
   /**
    * Creates a conversation with optional existing items.
    * @param items Initial conversation items in chronological order.
    * @param id Stable conversation identity; generated when omitted.
+   * @param cwd Working directory containing the sessions directory.
    */
-  public constructor(items: ConversationItem[] = [], id: string = randomUUID()) {
+  public constructor(
+    items: ConversationItem[] = [],
+    id: string = randomUUID(),
+    cwd: string = process.cwd(),
+  ) {
     this.id = id;
     this.items = [...items];
+    this.cwd = resolve(cwd);
   }
 
   /**
@@ -37,9 +50,133 @@ export class Conversation {
    * @returns A detached NeuralLink-compatible input array.
    */
   public append(items: ConversationItem[]): ConversationInput {
+    const originalLength = this.items.length;
     this.items.push(...items);
+    try {
+      this.persist();
+      return this.context();
+    } catch (error) {
+      this.items.length = originalLength;
+      throw error;
+    }
+  }
+
+  /**
+   * Loads a persisted session and returns its NeuralLink-compatible context.
+   * Existing state is changed only after the complete file has been parsed.
+   * @param sessionId Identifier of the session to load.
+   * @returns A detached NeuralLink-compatible input array.
+   */
+  public read(sessionId: string): ConversationInput {
+    const path = this.sessionPath(sessionId);
+    const loaded = parseConversation(readFileSync(join(path, CONVERSATION_FILE), "utf8"));
+    this.id = sessionId;
+    this.items.splice(0, this.items.length, ...loaded);
     return this.context();
   }
+
+  /** Writes the complete conversation and ensures its archive directory exists. */
+  private persist(): void {
+    const path = this.sessionPath(this.id);
+    mkdirSync(join(path, ARCHIVES_DIRECTORY), { recursive: true });
+    writeFileSync(
+      join(path, CONVERSATION_FILE),
+      serializeConversation(this.items),
+      "utf8",
+    );
+  }
+
+  /**
+   * Resolves a session directory without allowing the identifier to escape it.
+   * @param sessionId Session identifier used as one directory name.
+   * @returns Absolute session directory path.
+   */
+  private sessionPath(sessionId: string): string {
+    if (
+      sessionId.length === 0
+      || sessionId === "."
+      || sessionId === ".."
+      || basename(sessionId) !== sessionId
+      || sessionId.includes("\\")
+    ) {
+      throw new Error(`Invalid session ID: ${JSON.stringify(sessionId)}`);
+    }
+    return join(this.cwd, "sessions", sessionId);
+  }
+}
+
+/**
+ * Encodes conversation items as JSON objects separated by thematic rules.
+ * @param items Conversation items to encode.
+ * @returns Markdown representation of the complete conversation.
+ */
+function serializeConversation(items: ConversationItem[]): string {
+  if (items.length === 0) return "";
+  return `${items.map((item) => JSON.stringify(item, undefined, 2)).join(ITEM_SEPARATOR)}\n`;
+}
+
+/**
+ * Parses and validates all conversation items from persisted Markdown.
+ * @param markdown Persisted conversation Markdown.
+ * @returns Validated conversation items in file order.
+ */
+function parseConversation(markdown: string): ConversationItem[] {
+  if (markdown.trim().length === 0) return [];
+  return markdown.trim().split(/\r?\n\r?\n---\r?\n\r?\n/u).map((block, index) => {
+    const legacy = /^```json\r?\n([\s\S]*)\r?\n```$/u.exec(block);
+    let value: unknown;
+    try {
+      value = JSON.parse(legacy?.[1] ?? block);
+    } catch (error) {
+      throw new Error(`Invalid conversation item ${index + 1}: malformed JSON`, { cause: error });
+    }
+    if (!isConversationItem(value)) {
+      throw new Error(`Invalid conversation item ${index + 1}: unsupported item shape`);
+    }
+    return value;
+  });
+}
+
+/**
+ * Checks whether an unknown persisted value is a supported conversation item.
+ * @param value Value decoded from one JSON block.
+ * @returns Whether the value conforms to a conversation item shape.
+ */
+function isConversationItem(value: unknown): value is ConversationItem {
+  if (typeof value !== "object" || value === null || !("type" in value)) return false;
+  const item = value as Record<string, unknown>;
+  switch (item.type) {
+    case "text":
+      return isConversationRole(item.role) && typeof item.text === "string";
+    case "image":
+      return isConversationRole(item.role) && typeof item.image === "string";
+    case "file":
+      return isConversationRole(item.role) && typeof item.file === "string";
+    case "reasoning":
+      return item.role === "assistant"
+        && typeof item.content === "string"
+        && typeof item.summary === "string";
+    case "function_call":
+      return item.role === "assistant"
+        && typeof item.call_id === "string"
+        && typeof item.name === "string"
+        && typeof item.arguments === "string";
+    case "function_call_output":
+      return item.role === "tool"
+        && typeof item.call_id === "string"
+        && typeof item.output === "string";
+    default:
+      return false;
+  }
+}
+
+/**
+ * Checks a user-visible conversation role.
+ * @param value Candidate item role.
+ * @returns Whether the role is supported for user-visible content.
+ */
+function isConversationRole(value: unknown): value is "user" | "assistant" {
+  return value === "user" || value === "assistant";
 }
 
 /**

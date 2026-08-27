@@ -15,6 +15,8 @@ export interface AgentOptions {
   memory?: Memory;
   /** Working directory used by the default bash tool. */
   cwd?: string;
+  /** Existing session identifier to load when the agent is constructed. */
+  sessionId?: string;
 }
 
 /** Input accepted by a WallE model query. */

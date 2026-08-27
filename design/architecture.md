@@ -32,7 +32,7 @@ Agent Runtime 主程序。
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | llm | Connector | neuralink 模型适配器 |
-| conversation | Conversation | 会话 |
+| conversation | Conversation | 会话对象 |
 | tools | Tools | 工具集 |
 
 **方法**
@@ -44,6 +44,10 @@ Agent Runtime 主程序。
 Agent 支持的 Agentic Loop 类型：
 
 - [ReAct](react.md)
+
+### 构造函数
+
+初始化 Agent 对象时，如果用户在构造函数中传递了 `sessionId` 属性，则从 `{cwd}/sessions/{sessionId}/CONVERSATION.md` 读取会话项列表并转换为 Conversaion 对象。
 
 ### 类型
 

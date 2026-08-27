@@ -9,24 +9,52 @@ class Conversation {
     items: Array~ConversationItem~
     context()
     append()
+    read(sessionId: string)
 }
 ```
 
-**属性**
+## 属性
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | items | Array<ConversationItem> | 会话项列表 |
 
-**方法**
+## 方法
 
-`.context()`
+### `.context()`
 
 读取会话列表并转换为适配 neurallink 的 `call()` 方法的入参结构。
 
-`.append(items: Array<ConversationItem>)`
+### `.append(items: Array<ConversationItem>)`
 
 向追加对应类型的 Conversation Item。返回追加后的完整 conversation。
+
+每一段会话都保存在以`会话 ID`命名的当前工作目录下，路径为：`{cwd}/sessions/{session_id}`。文件夹中包含：
+- `CONVERSATION.md`：会话项列表，以 Markdown 文件存储，使用分隔符 `---` 对 items 进行分隔。
+- `ARCHIVES/`：会话产生的归档物。
+
+示例：
+
+```
+{
+  "type": "text",
+  "role": "user",
+  "text": "hello"
+}
+
+---
+
+{
+  "type": "reasoning",
+  "role": "assistant",
+  "content": "",
+  "summary": "We need respond to user \"hello\". \n\nI will call the memory retrieval tool to get the user's profile information first, and then generate a proper response to the user's greeting."
+}
+```
+
+### `.read(sessionId: string)`
+
+从本地加载指定 ID 的会话项列表。返回读取后的 conversation。如果读取失败，保留现有会话项列表并抛出异常。
 
 ## 流程
 

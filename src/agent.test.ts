@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Agent,
   Conversation,
@@ -125,6 +128,19 @@ async function consume(
 }
 
 describe("Agent", () => {
+  let testCwd: string;
+  let cwdSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    testCwd = mkdtempSync(join(tmpdir(), "walle-agent-"));
+    cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testCwd);
+  });
+
+  afterEach(() => {
+    cwdSpy.mockRestore();
+    rmSync(testCwd, { recursive: true, force: true });
+  });
+
   it("maps lifecycle and delta events while retaining the conversation", async () => {
     const final = response([{
       type: "message",
@@ -169,11 +185,36 @@ describe("Agent", () => {
 
   it("advertises the default native bash tool", async () => {
     const call = vi.fn(() => stream(response([])));
-    await consume(new Agent({ llm: { call }, cwd: "/workspace" })
+    await consume(new Agent({
+      llm: { call },
+      cwd: "/workspace",
+      conversation: new Conversation([], "test", testCwd),
+    })
       .query("model", "run"));
 
     expect(call.mock.calls[0]?.[2].tools).toEqual([
       expect.objectContaining({ type: "function", name: "bash" }),
+    ]);
+  });
+
+  it("loads a requested session when constructed", async () => {
+    new Conversation([], "existing", testCwd).append([
+      { type: "text", role: "user", text: "historical" },
+    ]);
+    const call = vi.fn(() => stream(response([])));
+    const agent = new Agent({
+      llm: { call },
+      tools: new Tools(),
+      cwd: testCwd,
+      sessionId: "existing",
+    });
+
+    await consume(agent.query("model", "current"));
+
+    expect(agent.conversation.id).toBe("existing");
+    expect(call.mock.calls[0]?.[1]).toEqual([
+      { type: "message", role: "user", content: [{ type: "input_text", text: "historical" }] },
+      { type: "message", role: "user", content: [{ type: "input_text", text: "current" }] },
     ]);
   });
 
