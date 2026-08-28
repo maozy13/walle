@@ -131,5 +131,4 @@ Memory 模块收到 Conversation Context 之后会转发给所有已注册的 Me
 
 具体的 MemoryAdapter 列表如下：
 
-- 压缩记忆 [ConversationMemoryAdapter](conversation-memory-adapter.md)
 - 术语表记忆 [TermsMemoryAdapter](terms-memory-adapter.md)
