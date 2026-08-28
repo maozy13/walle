@@ -5,6 +5,7 @@ import type {
 import type {
   ConversationInput,
   ConversationItem,
+  ConversationItemInput,
 } from "./typings/conversation.js";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -27,12 +28,12 @@ export class Conversation {
    * @param cwd Working directory containing the sessions directory.
    */
   public constructor(
-    items: ConversationItem[] = [],
+    items: ConversationItemInput[] = [],
     id: string = randomUUID(),
     cwd: string = process.cwd(),
   ) {
     this.id = id;
-    this.items = [...items];
+    this.items = items.map(withMetadata);
     this.cwd = resolve(cwd);
   }
 
@@ -49,9 +50,9 @@ export class Conversation {
    * @param items Conversation items to append in chronological order.
    * @returns A detached NeuralLink-compatible input array.
    */
-  public append(items: ConversationItem[]): ConversationInput {
+  public append(items: ConversationItemInput[]): ConversationInput {
     const originalLength = this.items.length;
-    this.items.push(...items);
+    this.items.push(...items.map(withMetadata));
     try {
       this.persist();
       return this.context();
@@ -130,19 +131,22 @@ function parseConversation(markdown: string): ConversationItem[] {
     } catch (error) {
       throw new Error(`Invalid conversation item ${index + 1}: malformed JSON`, { cause: error });
     }
-    if (!isConversationItem(value)) {
+    if (!isConversationItemShape(value)) {
       throw new Error(`Invalid conversation item ${index + 1}: unsupported item shape`);
     }
-    return value;
+    if (hasMetadataFields(value) && !hasValidMetadata(value)) {
+      throw new Error(`Invalid conversation item ${index + 1}: unsupported item shape`);
+    }
+    return hasValidMetadata(value) ? value : withMetadata(value);
   });
 }
 
 /**
- * Checks whether an unknown persisted value is a supported conversation item.
+ * Checks whether an unknown persisted value has a supported item-specific shape.
  * @param value Value decoded from one JSON block.
- * @returns Whether the value conforms to a conversation item shape.
+ * @returns Whether the value conforms to a conversation item shape without considering metadata.
  */
-function isConversationItem(value: unknown): value is ConversationItem {
+function isConversationItemShape(value: unknown): value is ConversationItemInput {
   if (typeof value !== "object" || value === null || !("type" in value)) return false;
   const item = value as Record<string, unknown>;
   switch (item.type) {
@@ -171,6 +175,43 @@ function isConversationItem(value: unknown): value is ConversationItem {
 }
 
 /**
+ * Checks whether either local metadata field is present on a decoded item.
+ * @param value Decoded conversation item.
+ * @returns Whether the item contains at least one metadata field.
+ */
+function hasMetadataFields(value: ConversationItemInput): boolean {
+  return "id" in value || "created_at" in value;
+}
+
+/**
+ * Checks whether both local metadata fields have valid primitive values.
+ * @param value Decoded conversation item.
+ * @returns Whether the item is a complete retained conversation item.
+ */
+function hasValidMetadata(value: ConversationItemInput): value is ConversationItem {
+  return "id" in value
+    && typeof value.id === "string"
+    && value.id.length > 0
+    && "created_at" in value
+    && typeof value.created_at === "number"
+    && Number.isFinite(value.created_at);
+}
+
+/**
+ * Adds locally generated metadata when an inserted item does not already contain it.
+ * @param item Conversation item supplied by a caller or normalization function.
+ * @returns Complete retained conversation item.
+ */
+function withMetadata(item: ConversationItemInput): ConversationItem {
+  if (hasValidMetadata(item)) return item;
+  return {
+    id: randomUUID(),
+    created_at: Date.now(),
+    ...item,
+  } as ConversationItem;
+}
+
+/**
  * Checks a user-visible conversation role.
  * @param value Candidate item role.
  * @returns Whether the role is supported for user-visible content.
@@ -186,7 +227,7 @@ function isConversationRole(value: unknown): value is "user" | "assistant" {
  */
 export function fromUserInput(input: string | InputItem[]): ConversationItem[] {
   if (typeof input === "string") {
-    return [{ type: "text", role: "user", text: input }];
+    return [withMetadata({ type: "text", role: "user", text: input })];
   }
   return input.flatMap(fromInputItem);
 }
@@ -199,29 +240,29 @@ export function fromUserInput(input: string | InputItem[]): ConversationItem[] {
 export function fromModelOutput(output: ResponseOutputItem[]): ConversationItem[] {
   return output.map((item): ConversationItem => {
     if (item.type === "function_call") {
-      return {
+      return withMetadata({
         type: "function_call",
         role: "assistant",
         call_id: item.call_id,
         name: item.name,
         arguments: item.arguments,
-      };
+      });
     }
     if (item.type === "reasoning") {
-      return {
+      return withMetadata({
         type: "reasoning",
         role: "assistant",
         content: item.content.text,
         summary: item.summary.text,
-      };
+      });
     }
-    return {
+    return withMetadata({
       type: "text",
       role: "assistant",
       text: item.content.type === "output_text"
         ? item.content.text
         : item.content.refusal,
-    };
+    });
   });
 }
 
@@ -232,20 +273,20 @@ export function fromModelOutput(output: ResponseOutputItem[]): ConversationItem[
  */
 function fromInputItem(item: InputItem): ConversationItem[] {
   if (item.type === "function_call") {
-    return [{ ...item, role: "assistant" }];
+    return [withMetadata({ ...item, role: "assistant" })];
   }
   if (item.type === "function_call_output") {
-    return [{ ...item, role: "tool" }];
+    return [withMetadata({ ...item, role: "tool" })];
   }
   const role = item.role === "assistant" ? "assistant" : "user";
   return item.content.map((content): ConversationItem => {
     if (content.type === "input_image") {
-      return { type: "image", role, image: content.image_url };
+      return withMetadata({ type: "image", role, image: content.image_url });
     }
     if (content.type === "input_file") {
-      return { type: "file", role, file: content.file_url };
+      return withMetadata({ type: "file", role, file: content.file_url });
     }
-    return { type: "text", role, text: content.text };
+    return withMetadata({ type: "text", role, text: content.text });
   });
 }
 

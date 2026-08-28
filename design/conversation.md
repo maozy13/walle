@@ -137,6 +137,8 @@ end
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
 | type | "text" | 会话项类型，固定为 "text" |
 | role | oneOf("user", "assistant") | 会话项生成者 |
 | text | string | 文本内容 |
@@ -149,6 +151,8 @@ end
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
 | type | "image" | 会话项类型，固定为 "image" |
 | role | oneOf("user", "assistant") | 会话项生成者 |
 | image | uri | 图片的 URI 地址 |
@@ -161,6 +165,8 @@ end
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
 | type | "file" | 会话项类型，固定为 "file" |
 | role | oneOf("user", "assistant") | 会话项生成者 |
 | file | uri | 文件的 URI 地址 |
@@ -173,6 +179,8 @@ end
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
 | type | "reasoning" | 会话项类型，固定为 "reasoning" |
 | role | "assistant" | 会话项生成者，固定为 "assistant" |
 | content | string | 推理正文 |
@@ -187,6 +195,8 @@ end
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
 | type | "function_call" | 会话项类型，固定为 "function_call" |
 | role | "assistant" | 会话项生成者，固定为 "assistant" |
 | call_id | string | 函数调用 ID |
@@ -202,6 +212,8 @@ end
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
 | type | "function_call_output" | 会话项类型，固定为 "function_call_output" |
 | role | "tool" | 会话项生成者，固定为 "tool" |
 | call_id | string | 关联的函数调用 ID |

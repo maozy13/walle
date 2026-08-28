@@ -5,11 +5,41 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   Conversation,
   type ConversationItem,
+  type ConversationItemInput,
   type ResponseOutputItem,
 } from "./index.js";
 import { fromModelOutput, fromUserInput } from "./conversation.js";
 
 let cwd: string;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+/**
+ * Removes generated metadata so item-specific normalization can be asserted clearly.
+ * @param items Complete retained conversation items.
+ * @returns Item-specific fields in their original order.
+ */
+function withoutMetadata(items: ConversationItem[]): ConversationItemInput[] {
+  return items.map(({ id: _id, created_at: _createdAt, ...item }) => item);
+}
+
+/**
+ * Verifies that every item has unique, locally generated metadata.
+ * @param items Complete retained conversation items.
+ * @param earliest Earliest accepted creation timestamp.
+ * @param latest Latest accepted creation timestamp.
+ */
+function expectMetadata(
+  items: ConversationItem[],
+  earliest: number,
+  latest: number,
+): void {
+  expect(new Set(items.map(({ id }) => id))).toHaveLength(items.length);
+  for (const item of items) {
+    expect(item.id).toMatch(UUID_PATTERN);
+    expect(item.created_at).toBeGreaterThanOrEqual(earliest);
+    expect(item.created_at).toBeLessThanOrEqual(latest);
+  }
+}
 
 beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), "walle-conversation-"));
@@ -21,7 +51,7 @@ afterEach(() => {
 
 describe("Conversation", () => {
   it("copies initial items, appends items, and returns detached model input", () => {
-    const initial: ConversationItem[] = [{ type: "text", role: "user", text: "one" }];
+    const initial: ConversationItemInput[] = [{ type: "text", role: "user", text: "one" }];
     const conversation = new Conversation(initial, "conversation-id", cwd);
     initial[0] = { type: "text", role: "user", text: "changed" };
 
@@ -46,7 +76,7 @@ describe("Conversation", () => {
   });
 
   it("persists every item as separated Markdown and reads it without loss", () => {
-    const items: ConversationItem[] = [
+    const items: ConversationItemInput[] = [
       { type: "text", role: "user", text: "line one\n---\nline two" },
       { type: "image", role: "assistant", image: "https://image" },
       { type: "file", role: "user", file: "file:///document" },
@@ -63,13 +93,13 @@ describe("Conversation", () => {
     expect(existsSync(join(session, "ARCHIVES"))).toBe(true);
     expect(markdown.match(/^---$/gmu)).toHaveLength(items.length - 1);
     expect(markdown).not.toContain("```json");
-    expect(markdown).toMatch(/^\{\n  "type": "text"/u);
+    expect(markdown).toMatch(/^\{\n  "id": ".+",\n  "created_at": \d+,\n  "type": "text"/u);
 
     const loaded = new Conversation([
       { type: "text", role: "user", text: "replace me" },
     ], "old-session", cwd);
     expect(loaded.read("saved-session")).toEqual(conversation.context());
-    expect(loaded.items).toEqual(items);
+    expect(loaded.items).toEqual(conversation.items);
     expect(loaded.id).toBe("saved-session");
   });
 
@@ -96,7 +126,7 @@ describe("Conversation", () => {
     conversation.append([{ type: "text", role: "assistant", text: "new" }]);
 
     const markdown = readFileSync(join(path, "CONVERSATION.md"), "utf8");
-    expect(conversation.items).toEqual([
+    expect(withoutMetadata(conversation.items)).toEqual([
       { type: "text", role: "user", text: "old" },
       { type: "text", role: "assistant", text: "new" },
     ]);
@@ -116,24 +146,22 @@ describe("Conversation", () => {
     const conversation = new Conversation([
       { type: "text", role: "user", text: "existing" },
     ], "original", cwd);
+    const existing = structuredClone(conversation.items);
 
     expect(() => conversation.read("broken")).toThrow(message);
     expect(conversation.id).toBe("original");
-    expect(conversation.items).toEqual([
-      { type: "text", role: "user", text: "existing" },
-    ]);
+    expect(conversation.items).toEqual(existing);
   });
 
   it("retains existing state when the requested session does not exist", () => {
     const conversation = new Conversation([
       { type: "text", role: "assistant", text: "existing" },
     ], "original", cwd);
+    const existing = structuredClone(conversation.items);
 
     expect(() => conversation.read("missing")).toThrow();
     expect(conversation.id).toBe("original");
-    expect(conversation.items).toEqual([
-      { type: "text", role: "assistant", text: "existing" },
-    ]);
+    expect(conversation.items).toEqual(existing);
   });
 
   it.each(["", ".", "..", "nested/id", "nested\\id"])(
@@ -159,10 +187,12 @@ describe("Conversation", () => {
   });
 
   it("normalizes plain and every structured user input kind", () => {
-    expect(fromUserInput("hello")).toEqual([
+    const earliest = Date.now();
+    const plain = fromUserInput("hello");
+    expect(withoutMetadata(plain)).toEqual([
       { type: "text", role: "user", text: "hello" },
     ]);
-    expect(fromUserInput([
+    const structured = fromUserInput([
       {
         type: "message",
         role: "assistant",
@@ -174,13 +204,15 @@ describe("Conversation", () => {
       { type: "message", role: "system", content: [{ type: "input_file", file_url: "file" }] },
       { type: "function_call", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", call_id: "call", output: "ok" },
-    ])).toEqual([
+    ]);
+    expect(withoutMetadata(structured)).toEqual([
       { type: "text", role: "assistant", text: "answer" },
       { type: "image", role: "assistant", image: "image" },
       { type: "file", role: "user", file: "file" },
       { type: "function_call", role: "assistant", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", role: "tool", call_id: "call", output: "ok" },
     ]);
+    expectMetadata([...plain, ...structured], earliest, Date.now());
   });
 
   it("normalizes every model output kind in order", () => {
@@ -195,11 +227,36 @@ describe("Conversation", () => {
       { id: "item", type: "function_call", call_id: "call", name: "tool", arguments: "{}" },
     ];
 
-    expect(fromModelOutput(output)).toEqual([
+    const earliest = Date.now();
+    const normalized = fromModelOutput(output);
+    expect(withoutMetadata(normalized)).toEqual([
       { type: "text", role: "assistant", text: "answer" },
       { type: "text", role: "assistant", text: "no" },
       { type: "reasoning", role: "assistant", content: "details", summary: "summary" },
       { type: "function_call", role: "assistant", call_id: "call", name: "tool", arguments: "{}" },
     ]);
+    expectMetadata(normalized, earliest, Date.now());
+  });
+
+  it("preserves supplied metadata and rejects incomplete persisted metadata", () => {
+    const supplied: ConversationItem = {
+      id: "fixed-id",
+      created_at: 123,
+      type: "text",
+      role: "user",
+      text: "existing",
+    };
+    const conversation = new Conversation([supplied], "metadata", cwd);
+    conversation.append([supplied]);
+    expect(conversation.items).toEqual([supplied, supplied]);
+
+    const path = join(cwd, "sessions", "invalid-metadata");
+    mkdirSync(path, { recursive: true });
+    writeFileSync(
+      join(path, "CONVERSATION.md"),
+      '{"id":"partial","type":"text","role":"user","text":"broken"}',
+      "utf8",
+    );
+    expect(() => conversation.read("invalid-metadata")).toThrow("unsupported item shape");
   });
 });

@@ -178,8 +178,8 @@ describe("Agent", () => {
       content: [{ type: "input_text", text: "你好" }],
     }], { instructions: "简短回答", tools: [] });
     expect(conversation.items).toEqual([
-      { type: "text", role: "user", text: "你好" },
-      { type: "text", role: "assistant", text: "你好" },
+      expect.objectContaining({ type: "text", role: "user", text: "你好" }),
+      expect.objectContaining({ type: "text", role: "assistant", text: "你好" }),
     ]);
   });
 
@@ -387,11 +387,11 @@ describe("Agent", () => {
     expect(call.mock.calls[2]?.[1]).toEqual(expect.arrayContaining([
       { type: "function_call_output", call_id: "call-3", output: "{\"doubled\":6}" },
     ]));
-    expect(agent.conversation.items.at(-1)).toEqual({
+    expect(agent.conversation.items.at(-1)).toEqual(expect.objectContaining({
       type: "text",
       role: "assistant",
       text: "done",
-    });
+    }));
   });
 
   it.each([

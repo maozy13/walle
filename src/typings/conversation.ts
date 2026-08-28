@@ -3,8 +3,16 @@ import type { InputItem } from "neuralink";
 /** Role of user-visible text, image, and file conversation items. */
 export type ConversationRole = "user" | "assistant";
 
+/** Metadata generated locally for every retained conversation item. */
+export interface ConversationItemMetadata {
+  /** Locally generated stable UUID. */
+  id: string;
+  /** Local creation time as a Unix timestamp in milliseconds. */
+  created_at: number;
+}
+
 /** Text stored in a conversation. */
-export interface TextConversationItem {
+export interface TextConversationItem extends ConversationItemMetadata {
   /** Stable item discriminator. */
   type: "text";
   /** Item producer. */
@@ -14,7 +22,7 @@ export interface TextConversationItem {
 }
 
 /** Image stored in a conversation. */
-export interface ImageConversationItem {
+export interface ImageConversationItem extends ConversationItemMetadata {
   /** Stable item discriminator. */
   type: "image";
   /** Item producer. */
@@ -24,7 +32,7 @@ export interface ImageConversationItem {
 }
 
 /** File stored in a conversation. */
-export interface FileConversationItem {
+export interface FileConversationItem extends ConversationItemMetadata {
   /** Stable item discriminator. */
   type: "file";
   /** Item producer. */
@@ -34,7 +42,7 @@ export interface FileConversationItem {
 }
 
 /** Model reasoning stored for inspection but not replayed to NeuralLink. */
-export interface ReasoningConversationItem {
+export interface ReasoningConversationItem extends ConversationItemMetadata {
   /** Stable item discriminator. */
   type: "reasoning";
   /** Item producer. */
@@ -46,7 +54,7 @@ export interface ReasoningConversationItem {
 }
 
 /** Function call selected by the model. */
-export interface FunctionCallConversationItem {
+export interface FunctionCallConversationItem extends ConversationItemMetadata {
   /** Stable item discriminator. */
   type: "function_call";
   /** Item producer. */
@@ -60,7 +68,7 @@ export interface FunctionCallConversationItem {
 }
 
 /** Result returned by a local tool. */
-export interface FunctionCallOutputConversationItem {
+export interface FunctionCallOutputConversationItem extends ConversationItemMetadata {
   /** Stable item discriminator. */
   type: "function_call_output";
   /** Item producer. */
@@ -79,6 +87,19 @@ export type ConversationItem =
   | ReasoningConversationItem
   | FunctionCallConversationItem
   | FunctionCallOutputConversationItem;
+
+/**
+ * Removes locally generated metadata from each member of a conversation-item union.
+ * @template Item Conversation item union to transform.
+ */
+type WithoutConversationItemMetadata<Item> = Item extends ConversationItemMetadata
+  ? Omit<Item, keyof ConversationItemMetadata>
+  : never;
+
+/** Item accepted for insertion, with local metadata optionally supplied by the caller. */
+export type ConversationItemInput =
+  | ConversationItem
+  | WithoutConversationItemMetadata<ConversationItem>;
 
 /** NeuralLink-compatible representation returned by a conversation. */
 export type ConversationInput = InputItem[];
