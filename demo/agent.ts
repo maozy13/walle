@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import {
@@ -31,8 +31,50 @@ interface ToolExecution {
 interface AgentCliOptions {
   /** Optional system instructions loaded from the selected file. */
   instructions?: string;
+  /** Whether requests and completed response snapshots should be logged. */
+  log: boolean;
   /** Optional persisted session identifier to load. */
   sessionId?: string;
+}
+
+/** JSONL logger for one Agent session. */
+class SessionLogger {
+  private readonly path: string;
+
+  /**
+   * Creates a logger under the current working directory.
+   * @param sessionId Stable identifier of the Agent conversation being logged.
+  * @param cwd Working directory containing the logs directory.
+  */
+  public constructor(sessionId: string, cwd: string = process.cwd()) {
+    const directory = resolve(cwd, "logs");
+    mkdirSync(directory, { recursive: true });
+    this.path = join(directory, `${sessionId}.jsonl`);
+  }
+
+  /**
+   * Records one user request before it is sent through the Agent loop.
+   * @param request User request supplied to Agent.query().
+   */
+  public request(request: string): void {
+    this.append({ type: "request", request });
+  }
+
+  /**
+   * Records the final accumulated response for one streamed model call.
+   * @param response Completed, failed, or incomplete response snapshot.
+   */
+  public response(response: AgentEvent["response"]): void {
+    this.append({ type: "response", response });
+  }
+
+  /**
+   * Appends one JSON value as a single JSONL record.
+   * @param record Serializable log record to append.
+   */
+  private append(record: object): void {
+    appendFileSync(this.path, `${JSON.stringify(record)}\n`, "utf8");
+  }
 }
 
 /** A user-visible item that can be restored in the terminal transcript. */
@@ -253,6 +295,7 @@ function parseAgentOptions(args: string[]): AgentCliOptions {
     args,
     options: {
       instructions: { type: "string" },
+      log: { type: "boolean", default: false },
       session: { type: "string" },
     },
     strict: true,
@@ -271,6 +314,7 @@ function parseAgentOptions(args: string[]): AgentCliOptions {
 
   return {
     ...(instructions === undefined ? {} : { instructions }),
+    log: values.log ?? false,
     ...(values.session === undefined ? {} : { sessionId: values.session }),
   };
 }
@@ -331,11 +375,27 @@ function conversationText(item: VisibleConversationItem): string {
  * @param agent Agent shared by every REPL turn.
  * @param printer Incremental Agent output renderer.
  * @param input User message for the current turn.
+ * @param logger Optional session logger enabled by the command line.
  * @returns Completion after all ReAct rounds finish.
  */
-async function runTurn(agent: Agent, printer: AgentPrinter, input: string): Promise<void> {
+async function runTurn(
+  agent: Agent,
+  printer: AgentPrinter,
+  input: string,
+  logger?: SessionLogger,
+): Promise<void> {
   try {
-    for await (const event of agent.query(model, input)) printer.write(event);
+    logger?.request(input);
+    for await (const event of agent.query(model, input)) {
+      printer.write(event);
+      if (
+        event.type === "agent.response.completed"
+        || event.type === "agent.response.failed"
+        || event.type === "agent.response.incomplete"
+      ) {
+        logger?.response(event.response);
+      }
+    }
   } catch (error) {
     process.stdout.write(`${paint("✗ Agent 错误", ANSI_RED)}\n${
       error instanceof Error ? error.message : String(error)
@@ -350,7 +410,7 @@ async function runTurn(agent: Agent, printer: AgentPrinter, input: string): Prom
  * @returns Completion after the user exits the REPL.
  */
 async function main(): Promise<void> {
-  const { instructions, sessionId } = parseAgentOptions(process.argv.slice(2));
+  const { instructions, log, sessionId } = parseAgentOptions(process.argv.slice(2));
   const apiKey = process.env.ARK_API_KEY;
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new Error("缺少 ARK_API_KEY；模型调用必须使用真实 API");
@@ -363,6 +423,7 @@ async function main(): Promise<void> {
   const panel = new ToolPanel();
   const tools = new DisplayTools(panel, [new BashTool({ cwd: process.cwd() })]);
   const agent = new Agent({ llm, tools, instructions, sessionId });
+  const logger = log ? new SessionLogger(agent.conversation.id) : undefined;
   const printer = new AgentPrinter();
   const readline = createInterface({
     input: process.stdin,
@@ -385,7 +446,7 @@ async function main(): Promise<void> {
     for await (const line of readline) {
       const input = line.trim();
       if (input === "/exit" || input === "/quit") break;
-      if (input !== "") await runTurn(agent, printer, input);
+      if (input !== "") await runTurn(agent, printer, input, logger);
       readline.prompt();
     }
   } finally {
