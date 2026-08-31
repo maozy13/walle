@@ -1,23 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ToolDef } from "../typings/tool.js";
+import { z } from "zod";
+import type { FuncTool } from "../typings/tool.js";
 import { Tools } from "./tools.js";
 
 /**
- * Creates a minimal tool definition.
+ * Creates a minimal function tool.
  * @param name Stable tool name.
  * @param fc Tool implementation.
- * @returns Tool definition.
+ * @returns Callable function tool.
  */
-function definition(name: string, fc: ToolDef["fc"] = vi.fn()): ToolDef {
-  return {
-    schema: {
-      type: "function",
-      name,
-      description: "test",
-      parameters: { type: "object", properties: {} },
-    },
-    fc,
-  };
+function definition(
+  name: string,
+  fc: (parameters: Record<string, unknown>) => unknown = vi.fn(),
+): FuncTool {
+  const tool = (parameters: Record<string, unknown>): unknown => fc(parameters);
+  Object.defineProperty(tool, "name", { value: name });
+  return Object.assign(tool, {
+    description: "test",
+    parameters: z.object({}).passthrough(),
+  });
 }
 
 describe("Tools", () => {
@@ -27,6 +28,10 @@ describe("Tools", () => {
       .register(definition("second"));
 
     expect(tools.list().map(({ name }) => name)).toEqual(["first", "second"]);
+    expect(tools.list()[0]?.parameters).toMatchObject({
+      type: "object",
+      additionalProperties: {},
+    });
     await expect(tools.exec("first", '{"value":1}')).resolves.toBe("ok");
     expect(first).toHaveBeenCalledWith({ value: 1 });
   });
@@ -54,5 +59,18 @@ describe("Tools", () => {
   ])("rejects invalid parameters: %s", async (parameters, message) => {
     await expect(new Tools([definition("tool")]).exec("tool", parameters))
       .rejects.toThrow(message);
+  });
+
+  it("validates parameters with the registered Zod schema", async () => {
+    function validated(parameters: { value: number }): number {
+      return parameters.value;
+    }
+    Object.assign(validated, {
+      description: "validated",
+      parameters: z.object({ value: z.number() }),
+    });
+
+    await expect(new Tools([validated]).exec("validated", '{"value":"1"}'))
+      .rejects.toThrow();
   });
 });

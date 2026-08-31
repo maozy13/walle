@@ -1,30 +1,33 @@
 import type { Tool } from "neuralink";
-import type { ToolArguments, ToolDef } from "../typings/tool.js";
+import { z } from "zod";
+import type { FuncTool } from "../typings/tool.js";
+
+type RegisteredTool = FuncTool<z.ZodType<any, any>>;
 
 /** Registry for tools available to an Agent. */
 export class Tools {
-  public readonly toolset = new Map<string, ToolDef>();
+  public readonly tools = new Map<string, RegisteredTool>();
 
   /**
    * Creates a tool registry.
-   * @param definitions Initial tools registered in declaration order.
+   * @param tools Initial tools registered in declaration order.
    */
-  public constructor(definitions: ToolDef[] = []) {
-    for (const definition of definitions) this.register(definition);
+  public constructor(tools: RegisteredTool[] = []) {
+    for (const tool of tools) this.register(tool);
   }
 
   /**
    * Registers one tool definition.
-   * @param definition Tool metadata and implementation.
+   * @param tool Callable tool and its model-facing metadata.
    * @returns This registry for fluent configuration.
    */
-  public register(definition: ToolDef): this {
-    const name = definition.schema.name;
+  public register(tool: RegisteredTool): this {
+    const name = tool.name;
     if (name.trim() === "") throw new Error("Tool name must not be empty");
-    if (this.toolset.has(name)) {
+    if (this.tools.has(name)) {
       throw new Error(`Tool "${name}" is already registered`);
     }
-    this.toolset.set(name, definition);
+    this.tools.set(name, tool);
     return this;
   }
 
@@ -33,7 +36,12 @@ export class Tools {
    * @returns Tool schemas in registration order.
    */
   public list(): Tool[] {
-    return [...this.toolset.values()].map((definition) => definition.schema);
+    return [...this.tools.values()].map((tool) => ({
+      type: "function",
+      name: tool.name,
+      description: tool.description,
+      parameters: z.toJSONSchema(tool.parameters),
+    }));
   }
 
   /**
@@ -43,9 +51,9 @@ export class Tools {
    * @returns The tool result.
    */
   public async exec(name: string, parameters: string): Promise<unknown> {
-    const definition = this.toolset.get(name);
-    if (definition === undefined) throw new Error(`Unknown tool "${name}"`);
-    return definition.fc(parseParameters(parameters));
+    const tool = this.tools.get(name);
+    if (tool === undefined) throw new Error(`Unknown tool "${name}"`);
+    return tool(tool.parameters.parse(parseParameters(parameters)));
   }
 }
 
@@ -54,7 +62,7 @@ export class Tools {
  * @param parameters JSON object encoded as text.
  * @returns Parsed tool arguments.
  */
-function parseParameters(parameters: string): ToolArguments {
+function parseParameters(parameters: string): unknown {
   let value: unknown;
   try {
     value = JSON.parse(parameters);
@@ -64,5 +72,5 @@ function parseParameters(parameters: string): ToolArguments {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Tool parameters must be a JSON object");
   }
-  return value as ToolArguments;
+  return value;
 }

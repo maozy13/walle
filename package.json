@@ -26,6 +26,7 @@
     "vitest": "3.2.7"
   },
   "dependencies": {
-    "neuralink": "github:maozy13/neuralink"
+    "neuralink": "github:maozy13/neuralink",
+    "zod": "^4.5.4"
   }
 }

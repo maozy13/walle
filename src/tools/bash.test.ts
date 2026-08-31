@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { BashTool } from "./bash.js";
+import { createBashTool } from "./bash.js";
 
-describe("BashTool", () => {
+describe("createBashTool", () => {
   it("parses quotes and escapes before invoking the configured executor", async () => {
     const executor = vi.fn().mockResolvedValue({ stdout: "ok", stderr: "" });
-    const bash = new BashTool({ cwd: "/workspace", executor });
+    const bash = createBashTool({ cwd: "/workspace", executor });
 
-    await expect(bash.fc({
+    await expect(bash({
       command: String.raw`grep "hello world" path\ with\ spaces`,
     })).resolves.toEqual({ stdout: "ok", stderr: "" });
     expect(executor).toHaveBeenCalledWith(
@@ -14,7 +14,7 @@ describe("BashTool", () => {
       ["hello world", "path with spaces"],
       "/workspace",
     );
-    expect(bash.schema.name).toBe("bash");
+    expect(bash.name).toBe("bash");
   });
 
   it.each([
@@ -24,8 +24,12 @@ describe("BashTool", () => {
     [{ command: "node script.js" }, "not allowed"],
     [{ command: "" }, "non-empty string"],
   ])("rejects invalid command input %#", async (parameters, message) => {
-    await expect(new BashTool({ executor: vi.fn() }).fc(parameters))
-      .rejects.toThrow(message);
+    const bash = createBashTool({ executor: vi.fn() });
+    if (parameters.command === "node script.js") {
+      await expect(bash(bash.parameters.parse(parameters))).rejects.toThrow(message);
+    } else {
+      expect(() => bash.parameters.parse(parameters)).toThrow(message);
+    }
   });
 
   it.each([
@@ -37,14 +41,14 @@ describe("BashTool", () => {
     ["rg --pre command pattern", "Process-spawning"],
     ["rg --pre=command pattern", "Process-spawning"],
   ])("rejects unsafe command: %s", async (command, message) => {
-    await expect(new BashTool({ executor: vi.fn() }).fc({ command }))
+    await expect(createBashTool({ executor: vi.fn() })({ command }))
       .rejects.toThrow(message);
   });
 
   it("allows literal shell characters inside single quotes", async () => {
     const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
 
-    await new BashTool({ executor }).fc({ command: "grep '$value' package.json" });
+    await createBashTool({ executor })({ command: "grep '$value' package.json" });
 
     expect(executor).toHaveBeenCalledWith(
       "grep",
@@ -59,12 +63,12 @@ describe("BashTool", () => {
     ["touch created.txt", "touch", ["created.txt"]],
   ])("allows selected content command: %s", async (command, executable, args) => {
     const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
-    const bash = new BashTool({ cwd: "/workspace", executor });
+    const bash = createBashTool({ cwd: "/workspace", executor });
 
-    await bash.fc({ command });
+    await bash({ command });
 
     expect(executor).toHaveBeenCalledWith(executable, args, "/workspace");
-    expect(bash.schema.description).toContain(executable);
+    expect(bash.description).toContain(executable);
   });
 
   it.each([
@@ -72,23 +76,23 @@ describe("BashTool", () => {
     ["mv draft.txt archive/final.txt", "mv", ["draft.txt", "archive/final.txt"]],
   ])("allows selected directory command: %s", async (command, executable, args) => {
     const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
-    const bash = new BashTool({ cwd: "/workspace", executor });
+    const bash = createBashTool({ cwd: "/workspace", executor });
 
-    await bash.fc({ command });
+    await bash({ command });
 
     expect(executor).toHaveBeenCalledWith(executable, args, "/workspace");
-    expect(bash.schema.description).toContain(executable);
+    expect(bash.description).toContain(executable);
   });
 
   it("executes a real read-only command with the default executor", async () => {
-    const output = await new BashTool().fc({ command: "pwd" });
+    const output = await createBashTool()({ command: "pwd" });
 
     expect(output.stdout.trim()).toBe(process.cwd());
     expect(output.stderr).toBe("");
   });
 
   it("reports failures from the default executor", async () => {
-    await expect(new BashTool().fc({
+    await expect(createBashTool()({
       command: "ls definitely-not-a-real-walle-path",
     })).rejects.toThrow("Command failed:");
   });

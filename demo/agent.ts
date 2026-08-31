@@ -4,10 +4,8 @@ import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import {
   Agent,
-  BashTool,
   Connector,
   ResponsesAPIConverter,
-  Tools,
   type AgentEvent,
   type ConversationItem,
 } from "walle";
@@ -20,12 +18,6 @@ const ANSI_CYAN = "\u001B[36m";
 const ANSI_GREEN = "\u001B[32m";
 const ANSI_MAGENTA = "\u001B[35m";
 const ANSI_RED = "\u001B[31m";
-
-/** One tool execution currently displayed in the terminal. */
-interface ToolExecution {
-  /** Registered tool name being executed. */
-  name: string;
-}
 
 /** Agent initialization options selected from the command line. */
 interface AgentCliOptions {
@@ -82,106 +74,6 @@ type VisibleConversationItem = Extract<
   ConversationItem,
   { type: "text" | "image" | "file" }
 >;
-
-/** Live, replaceable terminal panel for one parallel batch of tool calls. */
-class ToolPanel {
-  private readonly active: ToolExecution[] = [];
-  private executionCount = 0;
-  private savedCursor = false;
-  private collapseVersion = 0;
-
-  /**
-   * Adds a tool to the active execution display.
-   * @param name Registered tool name.
-   * @returns Execution token used to mark this tool complete.
-   */
-  public begin(name: string): ToolExecution {
-    const execution = { name };
-    this.active.push(execution);
-    this.executionCount += 1;
-    this.collapseVersion += 1;
-    if (process.stdout.isTTY) {
-      this.render();
-    } else {
-      process.stdout.write(`正在执行工具 ${name}\n`);
-    }
-    return execution;
-  }
-
-  /**
-   * Removes one completed tool and schedules batch collapse.
-   * @param execution Execution token returned by begin().
-   */
-  public complete(execution: ToolExecution): void {
-    const index = this.active.indexOf(execution);
-    if (index >= 0) this.active.splice(index, 1);
-    this.render();
-    const version = ++this.collapseVersion;
-    queueMicrotask(() => {
-      if (this.active.length === 0 && version === this.collapseVersion) this.collapse();
-    });
-  }
-
-  /** Replaces the live tool details with a compact execution count. */
-  private collapse(): void {
-    const summary = `${paint("✓", ANSI_GREEN)} 已执行 ${this.executionCount} 次工具`;
-    if (process.stdout.isTTY && this.savedCursor) {
-      process.stdout.write(`\u001B[u\u001B[J${summary}\n`);
-    } else {
-      process.stdout.write(`${summary}\n`);
-    }
-    this.executionCount = 0;
-    this.savedCursor = false;
-  }
-
-  /** Refreshes the replaceable tool panel in an interactive terminal. */
-  private render(): void {
-    if (!process.stdout.isTTY) return;
-    if (!this.savedCursor) {
-      process.stdout.write("\u001B[s");
-      this.savedCursor = true;
-    }
-    process.stdout.write(`\u001B[u\u001B[J${this.content()}`);
-  }
-
-  /**
-   * Formats the complete current tool batch.
-   * @returns Human-readable tool panel text ending in a newline.
-   */
-  private content(): string {
-    return `${this.active.map(({ name }) => `正在执行工具 ${name}`).join("\n")}\n`;
-  }
-}
-
-/** Tool registry that updates a replaceable terminal panel around executions. */
-class DisplayTools extends Tools {
-  /**
-   * Creates a tool registry connected to a terminal panel.
-   * @param panel Tool panel receiving execution state changes.
-   * @param definitions Initial tool definitions.
-   */
-  public constructor(
-    private readonly panel: ToolPanel,
-    definitions: ConstructorParameters<typeof Tools>[0],
-  ) {
-    super(definitions);
-  }
-
-  /**
-   * Executes a registered tool while reporting its active state to the panel.
-   * @param name Registered tool name selected by the model.
-   * @param parameters JSON-encoded tool arguments selected by the model.
-   * @returns The registered tool's response.
-   */
-  public override async exec(name: string, parameters: string): Promise<unknown> {
-    const execution = this.panel.begin(name);
-    try {
-      return await super.exec(name, parameters);
-    } finally {
-      this.panel.complete(execution);
-    }
-  }
-}
 
 /** Incremental renderer for Agent reasoning and answer snapshots. */
 class AgentPrinter {
@@ -420,9 +312,7 @@ async function main(): Promise<void> {
     apiKey.replace(/^Bearer\s+/i, ""),
     new ResponsesAPIConverter(),
   );
-  const panel = new ToolPanel();
-  const tools = new DisplayTools(panel, [new BashTool({ cwd: process.cwd() })]);
-  const agent = new Agent({ llm, tools, instructions, sessionId });
+  const agent = new Agent({ llm, instructions, sessionId });
   const logger = log ? new SessionLogger(agent.conversation.id) : undefined;
   const printer = new AgentPrinter();
   const readline = createInterface({

@@ -61,20 +61,24 @@ for await event of agent.query('deepseek-v4-flash', '明天上海的天气怎么
 classDiagram
 
 class Tools {
-|   toolset
+|   tools
+    register()
     list() Array~Tool~
     exec(name: string, parameters: string)
 }
 ```
 
-
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
-| toolset | Map<string, ToolDef> | 工具集合。以工具名称为 key，工具定义 + 工具本体为值。 |
+| tools | Map<string, FuncTool> | 工具集合。以工具名称为 key，工具函数本体为值。 |
 
 **方法**
+
+`.register(tool: FuncTool)`
+
+注册工具。
 
 `.list(): Array<Tool>`
 
@@ -86,14 +90,17 @@ class Tools {
 
 **类型**
 
-`ToolDef`
+`FuncTool`
+
+`FuncTool` 是工具函数本体，并附带了 `name`、`description` 和 `parameters` 元数据作为 LLM Tool 参数定义。
 
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
-| schema | Tool | 工具定义 |
-| fc | function | 工具函数本体 |
+| name | string | 工具函数名称 |
+| description | string | 工具函数描述 |
+| parameters | JSON Schema | 工具参数 Schema，使用 Zod 进行定义 |
 
 ## 内置工具
 
@@ -101,7 +108,9 @@ WallE 内置以下工具：
 
 ### **bash**<a id="bash"></a>
  
- WallE 内置 `bash` 工具，用于执行 Bash 命令。`bash` 工具接收 `command` 作为参数，返回 stdout 和 stderr。 Schema 定义如下：
+ WallE 内置 `bash` 工具，用于执行 Bash 命令。`bash` 工具接收 `command` 作为参数，返回 stdout 和 stderr。 
+ 
+ bash 工具定义如下：
 
  ```yaml
  name: bash

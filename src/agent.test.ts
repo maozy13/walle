@@ -11,9 +11,10 @@ import {
   type Response,
   type ResponseEvent,
   type ResponseFunctionCall,
-  type ToolDef,
+  type FuncTool,
   type MemoryAdapter,
 } from "./index.js";
+import { z } from "zod";
 
 /**
  * Creates an accumulated response with supplied output and status.
@@ -90,25 +91,21 @@ function functionCall(
 }
 
 /**
- * Creates a test tool definition.
+ * Creates a test function tool.
  * @param name Stable tool name.
  * @param fc Tool implementation.
- * @returns Tool metadata and implementation.
+ * @returns Callable function tool.
  */
-function tool(name: string, fc: ToolDef["fc"]): ToolDef {
-  return {
-    schema: {
-      type: "function",
-      name,
-      description: "test tool",
-      parameters: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
-    },
-    fc,
-  };
+function tool(
+  name: string,
+  fc: (parameters: Record<string, unknown>) => unknown,
+): FuncTool {
+  const callable = (parameters: Record<string, unknown>): unknown => fc(parameters);
+  Object.defineProperty(callable, "name", { value: name });
+  return Object.assign(callable, {
+    description: "test tool",
+    parameters: z.object({}).passthrough(),
+  });
 }
 
 /**

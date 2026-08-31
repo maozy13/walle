@@ -10,7 +10,7 @@ import {
   fromModelOutput,
   fromUserInput,
 } from "./conversation.js";
-import { BashTool } from "./tools/bash.js";
+import { createBashTool } from "./tools/bash.js";
 import { Tools } from "./tools/tools.js";
 import type { Memory } from "./memory.js";
 import type {
@@ -40,7 +40,7 @@ export class Agent {
       ?? new Conversation([], options.sessionId, options.cwd);
     if (options.sessionId !== undefined) this.conversation.read(options.sessionId);
     this.tools = options.tools
-      ?? new Tools([new BashTool({ cwd: options.cwd })]);
+      ?? new Tools([createBashTool({ cwd: options.cwd })]);
     this.memory = options.memory;
     if (this.memory !== undefined) this.tools.register(this.memory.inject());
   }
