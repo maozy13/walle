@@ -5,7 +5,9 @@ import { parseArgs } from "node:util";
 import {
   Agent,
   Connector,
+  Memory,
   ResponsesAPIConverter,
+  TermsMemoryAdapter,
   type AgentEvent,
   type ConversationItem,
 } from "walle";
@@ -312,7 +314,9 @@ async function main(): Promise<void> {
     apiKey.replace(/^Bearer\s+/i, ""),
     new ResponsesAPIConverter(),
   );
-  const agent = new Agent({ llm, instructions, sessionId });
+  const cwd = process.cwd();
+  const memory = new Memory([new TermsMemoryAdapter(cwd)]);
+  const agent = new Agent({ llm, instructions, sessionId, memory, cwd });
   const logger = log ? new SessionLogger(agent.conversation.id) : undefined;
   const printer = new AgentPrinter();
   const readline = createInterface({

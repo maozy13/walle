@@ -1,52 +1,38 @@
-import type { ConversationItem } from "./conversation.js";
-
-/** Metadata describing the Agent task that produced a memory update. */
-export interface MemoryContextMetadata {
-  /** Model identifier used for the task. */
-  model: string;
-  /** Unix timestamp in milliseconds at which the task started. */
-  startedAt: number;
-  /** Unix timestamp in milliseconds at which the task finished. */
-  completedAt: number;
-}
-
-/** The task-local conversation context forwarded to memory adapters. */
-export interface MemoryContext {
-  /** Conversation identity and items produced during the current task only. */
-  conversation: {
-    /** Stable identity of the owning conversation. */
-    id: string;
-    /** Items from the current user request through task termination. */
-    items: ConversationItem[];
-  };
-  /** Task metadata available to adapter-specific update logic. */
-  metadata: MemoryContextMetadata;
-}
+/**
+ * A callable memory operation carrying the metadata used to select an adapter.
+ * @template TInput Value forwarded by the Memory dispatcher.
+ * @template TResult Value returned by the adapter operation.
+ */
+export type MemoryOperation<TInput, TResult = unknown> = ((
+  /** Model-generated value forwarded without interpretation by the adapter registry. */
+  input: TInput,
+) => TResult | Promise<TResult>) & {
+  /** Stable adapter name used by Memory for routing. */
+  readonly name: string;
+  /** Model-facing guidance describing when and how to use the operation. */
+  readonly description: string;
+};
 
 /** A pluggable source that retrieves and updates one kind of Agent memory. */
 export interface MemoryAdapter {
-  /** Unique adapter name selected by the model. */
-  readonly name: string;
-  /** Human-readable guidance explaining when the adapter should be used. */
-  readonly description: string;
-  /**
-   * Retrieves memory relevant to a model-generated query.
-   * @param query Search expression selected by the model.
-   * @returns Adapter-specific memory content suitable for tool output.
-   */
-  retrieve(query: string): unknown | Promise<unknown>;
-  /**
-   * Processes one completed task's local conversation context.
-   * @param context Conversation items and task metadata to persist or index.
-   * @returns Completion of the adapter update.
-   */
-  update(context: MemoryContext): void | Promise<void>;
+  /** Model-selectable operation for retrieving relevant memory. */
+  readonly retrieve: MemoryOperation<string>;
+  /** Model-selectable operation for persisting JSON-encoded memory content. */
+  readonly update: MemoryOperation<string>;
 }
 
-/** Parsed arguments accepted by the built-in memory retrieval tool. */
+/** Arguments accepted by the built-in memory retrieval tool. */
 export interface MemoryRetrieveArguments {
-  /** Registered adapter name. */
+  /** Registered memory source name. */
   name: string;
-  /** Search expression passed to the selected adapter. */
+  /** Search expression forwarded to the selected adapter. */
   query: string;
+}
+
+/** Arguments accepted by the built-in memory update tool. */
+export interface MemoryUpdateArguments {
+  /** Registered memory source name. */
+  name: string;
+  /** JSON-encoded update content forwarded to the selected adapter. */
+  content: string;
 }

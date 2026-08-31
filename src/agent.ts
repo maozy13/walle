@@ -28,21 +28,23 @@ export class Agent {
   public readonly conversation: Conversation;
   public readonly tools: Tools;
   public readonly memory?: Memory;
+  private readonly cwd: string;
 
   /**
    * Creates an agent backed by a NeuralLink-compatible connector.
    * @param options Model connector, system instructions, conversation, tools, memory, and paths.
    */
   public constructor(options: AgentOptions) {
+    this.cwd = options.cwd ?? process.cwd();
     this.instructions = options.instructions ?? "";
     this.llm = options.llm;
     this.conversation = options.conversation
-      ?? new Conversation([], options.sessionId, options.cwd);
+      ?? new Conversation([], options.sessionId, this.cwd);
     if (options.sessionId !== undefined) this.conversation.read(options.sessionId);
     this.tools = options.tools
       ?? new Tools([createBashTool({ cwd: options.cwd })]);
     this.memory = options.memory;
-    if (this.memory !== undefined) this.tools.register(this.memory.inject());
+    if (this.memory !== undefined) this.tools.register(this.memory.retrieveTool());
   }
 
   /**
@@ -57,7 +59,6 @@ export class Agent {
     input: AgentInput,
     optional: AgentQueryOptions = {},
   ): AgentQuery {
-    const startedAt = Date.now();
     const firstTaskItem = this.conversation.items.length;
     let modelInput = this.conversation.append(fromUserInput(input));
     const modelOptions = this.createModelOptions(optional);
@@ -78,17 +79,38 @@ export class Agent {
         })));
       }
     } finally {
-      await this.memory?.update({
-        conversation: {
-          id: this.conversation.id,
-          items: structuredClone(this.conversation.items.slice(firstTaskItem)),
-        },
-        metadata: {
+      if (this.memory !== undefined && this.memory.adapters.size > 0) {
+        await this.updateMemory(
           model,
-          startedAt,
-          completedAt: Date.now(),
-        },
-      });
+          structuredClone(this.conversation.items.slice(firstTaskItem)),
+          this.memory,
+        );
+      }
+    }
+  }
+
+  /**
+   * Runs an independent task-local Agent that evaluates and performs memory updates.
+   * @param model Provider model identifier used by the completed primary task.
+   * @param taskItems Conversation items produced by the completed primary task only.
+   * @param memory Memory registry used to construct the task-local update tool.
+   * @returns Completion after the memory Agent exits its own ReAct lifecycle.
+   */
+  private async updateMemory(
+    model: string,
+    taskItems: typeof this.conversation.items,
+    memory: Memory,
+  ): Promise<void> {
+    const agent = new Agent({
+      llm: this.llm,
+      instructions: memory.updateInstructions(),
+      conversation: new Conversation(taskItems, undefined, this.cwd),
+      tools: new Tools([memory.updateTool()]),
+      cwd: this.cwd,
+    });
+    const query = agent.query(model, "请根据以上会话上下文判断并完成记忆更新。");
+    while (!(await query.next()).done) {
+      // The memory Agent has an independent lifecycle and produces no public events.
     }
   }
 

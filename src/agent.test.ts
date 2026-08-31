@@ -13,6 +13,7 @@ import {
   type ResponseFunctionCall,
   type FuncTool,
   type MemoryAdapter,
+  type MemoryOperation,
 } from "./index.js";
 import { z } from "zod";
 
@@ -106,6 +107,22 @@ function tool(
     description: "test tool",
     parameters: z.object({}).passthrough(),
   });
+}
+
+/**
+ * Attaches a stable adapter name and description to a test memory operation.
+ * @param name Shared adapter selector name.
+ * @param description Model-facing operation guidance.
+ * @param implementation Observable operation implementation.
+ * @returns Callable memory operation with metadata.
+ */
+function memoryOperation(
+  name: string,
+  description: string,
+  implementation: (input: string) => unknown,
+): MemoryOperation<string> {
+  Object.defineProperty(implementation, "name", { value: name });
+  return Object.assign(implementation, { description });
 }
 
 /**
@@ -239,10 +256,8 @@ describe("Agent", () => {
     const retrieve = vi.fn(() => ({ language: "中文" }));
     const update = vi.fn();
     const adapter: MemoryAdapter = {
-      name: "profile",
-      description: "用户画像",
-      retrieve,
-      update,
+      retrieve: memoryOperation("profile", "用户画像召回", retrieve),
+      update: memoryOperation("profile", "用户画像更新，content 是 JSON 字符串", update),
     };
     const selected = functionCall(
       "memory-call",
@@ -251,6 +266,14 @@ describe("Agent", () => {
     );
     const call = vi.fn()
       .mockImplementationOnce(() => stream(response([selected])))
+      .mockImplementationOnce(() => stream(response([])))
+      .mockImplementationOnce(() => lifecycle(response([
+        functionCall(
+          "update-call",
+          "memory.update",
+          '{"name":"profile","content":"{\\"language\\":\\"中文\\"}"}',
+        ),
+      ])))
       .mockImplementationOnce(() => stream(response([])));
     const conversation = new Conversation([
       { type: "text", role: "user", text: "historical" },
@@ -279,21 +302,18 @@ describe("Agent", () => {
       call_id: "memory-call",
       output: '{"language":"中文"}',
     }]));
+    expect(call.mock.calls[2]?.[2].tools).toEqual([
+      expect.objectContaining({ name: "memory.update" }),
+    ]);
+    expect(call.mock.calls[2]?.[2].instructions).toContain("你的任务是更新记忆");
+    expect(call.mock.calls[2]?.[1]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "message", role: "user" }),
+      expect.objectContaining({ type: "function_call", name: "memory.retrieve" }),
+      expect.objectContaining({ type: "function_call_output" }),
+    ]));
+    expect(JSON.stringify(call.mock.calls[2]?.[1])).not.toContain("historical");
     expect(update).toHaveBeenCalledOnce();
-    expect(update.mock.calls[0]?.[0]).toMatchObject({
-      conversation: {
-        id: "conversation-id",
-        items: [
-          { type: "text", role: "user", text: "current" },
-          expect.objectContaining({ type: "function_call", name: "memory.retrieve" }),
-          expect.objectContaining({ type: "function_call_output" }),
-        ],
-      },
-      metadata: { model: "model" },
-    });
-    expect(update.mock.calls[0]?.[0].conversation.items).not.toContainEqual(
-      expect.objectContaining({ text: "historical" }),
-    );
+    expect(update).toHaveBeenCalledWith('{"language":"中文"}');
   });
 
   it("reserves the memory retrieval tool name when memory is enabled", () => {
@@ -331,24 +351,26 @@ describe("Agent", () => {
     },
   );
 
-  it("updates memory when model execution throws", async () => {
+  it("starts an independent memory Agent when model execution throws", async () => {
     const update = vi.fn();
     const memory = new Memory([{
-      name: "profile",
-      description: "用户画像",
-      retrieve: vi.fn(),
-      update,
+      retrieve: memoryOperation("profile", "用户画像召回", vi.fn()),
+      update: memoryOperation("profile", "用户画像更新", update),
     }]);
-    const agent = new Agent({
-      llm: { call: () => {
+    const call = vi.fn()
+      .mockImplementationOnce(() => {
         throw new Error("model failed");
-      } },
+      })
+      .mockImplementationOnce(() => stream(response([])));
+    const agent = new Agent({
+      llm: { call },
       tools: new Tools(),
       memory,
     });
 
     await expect(consume(agent.query("model", "run"))).rejects.toThrow("model failed");
-    expect(update).toHaveBeenCalledOnce();
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("runs repeated and parallel tool calls with complete conversation context", async () => {
