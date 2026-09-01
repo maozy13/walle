@@ -25,6 +25,7 @@
 ├── references/                       # 项目依赖的外部 API
 └── src/                              # 源代码
 │   ├── tools/                        # 内置工具集
+│   ├── memory-adapters/              # 内置记忆系统
 │   ├── typings/                      # TypeScript 类型定义
 ```
 
