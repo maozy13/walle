@@ -17,10 +17,8 @@
     "build:neuralink": "tsc -p node_modules/neuralink/tsconfig.json",
     "postinstall": "pnpm build:neuralink",
     "build": "pnpm build:neuralink && tsc -p tsconfig.json",
-    "demo": "pnpm build && tsc -p demo/tsconfig.json && node dist/demo/responses-api.js",
-    "demo:agent": "pnpm build && tsc -p demo/tsconfig.json && node dist/demo/agent.js",
     "test": "pnpm build:neuralink && vitest run --coverage",
-    "typecheck": "pnpm build && tsc --noEmit -p demo/tsconfig.json"
+    "typecheck": "pnpm build:neuralink && tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "24.1.0",
