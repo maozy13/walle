@@ -1,7 +1,7 @@
 export { Agent } from "./agent.js";
 export { Conversation } from "./conversation.js";
 export { Memory } from "./memory.js";
-export * from "./memories/index.js";
+export * from "./memory-adapters/index.js";
 export { Tools } from "./tools/index.js";
 export type * from "./tools/index.js";
 export { Connector, ResponsesAPIConverter } from "neuralink";
