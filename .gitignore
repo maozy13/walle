@@ -4,5 +4,6 @@ coverage/
 sessions/
 logs/
 memories/
+.walle
 
 .DS_Store

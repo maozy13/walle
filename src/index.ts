@@ -1,4 +1,5 @@
 export { Agent } from "./agent.js";
+export { resolveCliConfig, runCli } from "./cli.js";
 export { Conversation } from "./conversation.js";
 export { Memory } from "./memory.js";
 export * from "./memory-adapters/index.js";
