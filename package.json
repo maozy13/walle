@@ -14,11 +14,9 @@
     }
   },
   "scripts": {
-    "build:neuralink": "tsc -p node_modules/neuralink/tsconfig.json",
-    "postinstall": "pnpm build:neuralink",
-    "build": "pnpm build:neuralink && tsc -p tsconfig.json",
-    "test": "pnpm build:neuralink && vitest run --coverage",
-    "typecheck": "pnpm build:neuralink && tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "24.1.0",
@@ -27,7 +25,7 @@
     "vitest": "3.2.7"
   },
   "dependencies": {
-    "neuralink": "github:maozy13/neuralink",
+    "@maozy13/neuralink": "^0.1.0",
     "zod": "^4.5.4"
   }
 }

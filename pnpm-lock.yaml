@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      neuralink:
-        specifier: github:maozy13/neuralink
-        version: https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416
+      '@maozy13/neuralink':
+        specifier: ^0.1.0
+        version: 0.1.0
       zod:
         specifier: ^4.5.4
         version: 4.5.4
@@ -231,6 +231,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@maozy13/neuralink@0.1.0':
+    resolution: {integrity: sha512-0E5Xw5As2ELmL8wtcipwVueXroUX0oEi4uRZx/edD/YibhdakurI+KayZWyGH2VzO53zJxJxpMbpptI1f4c3gw==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -619,10 +622,6 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  neuralink@https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416:
-    resolution: {tarball: https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416}
-    version: 0.1.0
-
   package-json-from-dist@1.0.1:
     resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
 
@@ -962,6 +961,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@maozy13/neuralink@0.1.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -1309,8 +1310,6 @@ snapshots:
   ms@2.1.3: {}
 
   nanoid@3.3.16: {}
-
-  neuralink@https://codeload.github.com/maozy13/neuralink/tar.gz/a75b7aaa3525bca0db39957d8fd62a11aa892416: {}
 
   package-json-from-dist@1.0.1: {}
 

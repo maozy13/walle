@@ -4,7 +4,17 @@ WallE 是一个 Agent 运行时框架。
 
 ## 架构
 
-WallE 深度依赖 [neuralink](https://github.com/maozy13/neuralink.git) 用于连接各种 LLM API 服务的模型适配层。
+WallE 深度依赖 [neuralink](@maozy13/neuralink) 模型适配层来连接各种 LLM API 服务。
+
+WallE 内部包含以下组件：
+
+- Tools：用于管理工具，仅 Agent 内部使用。提供列举工具和注册工具接口。参考 [tools.md](tools.md)。
+- Conversation: 用于管理 Agent 会话。参考 [conversation.md](conversation.md)。
+- Memory: 记忆组件，提供记忆的更新和召回。
+
+### Agent
+
+Agent 运行时主程序。
 
 ```mermaid
 classDiagram
@@ -19,14 +29,6 @@ class Agent {
 
 ```
 
-WallE 内部包含以下组件：
-
-- Tools：用于管理工具，仅 Agent 内部使用。提供列举工具和注册工具接口。参考 [tools.md](tools.md)
-- Conversation: 用于管理 Agent 会话。参考 [conversation.md](conversation.md)
-
-### Agent
-
-Agent Runtime 主程序。
 
 **属性**
 
@@ -42,10 +44,6 @@ Agent Runtime 主程序。
 `query(model: string, input: string | Array<InputItem>, optional?: Optional): AsyncIterator<AgentEvent>` 
 
 接收用户请求，通过 Agentic Loop 多轮调用 `neuralink` 完成用户请求。
-
-Agent 支持的 Agentic Loop 类型：
-
-- [ReAct](react.md)
 
 ### 构造函数
 

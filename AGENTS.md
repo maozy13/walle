@@ -9,7 +9,7 @@
 - 使用 zod 作为 Schema 验证器。
 - 每个函数及参数都必须有完整的文档注释。
 - 单元测试行覆盖率必须达到 100%，条件覆盖率达到 95% 以上。
-- 使用 [neuralink](https://github.com/maozy13/neuralink.git) 作为模型适配层，仔细阅读代码仓库内的 README.md 和 docs/ 目录下的文档了解用法。
+- 使用 [neuralink](@maozy13/neuralink) 作为模型适配层，仔细阅读代码仓库内的 README.md 和 docs/ 目录下的文档了解用法。
 
 ## 流程
 
