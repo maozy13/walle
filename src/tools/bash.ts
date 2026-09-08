@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { realpathSync, statSync } from "node:fs";
+import { extname, isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 import type { FuncTool } from "../typings/tool.js";
 
@@ -17,10 +19,23 @@ const allowedCommands = new Set([
   "pwd",
   "rg",
   "sed",
+  "sh",
   "stat",
   "tail",
   "touch",
   "wc",
+  "bash",
+  "node",
+  "python",
+  "python3",
+]);
+
+const scriptExtensions = new Map<string, ReadonlySet<string>>([
+  ["sh", new Set([".sh"])],
+  ["bash", new Set([".sh"])],
+  ["python", new Set([".py"])],
+  ["python3", new Set([".py"])],
+  ["node", new Set([".js", ".mjs", ".cjs"])],
 ]);
 
 /** Captured output from the built-in bash tool. */
@@ -60,6 +75,7 @@ const bashParameters = z.object({
 const bashDescription = [
   "在当前工作目录执行一条命令并返回 stdout 和 stderr。",
   "仅支持 cat、df、du、echo、file、find、grep、head、ls、mkdir、mv、pwd、rg、sed、stat、tail、touch、wc；其中 sed 可用于编辑文件，echo 可用于输出内容，touch 可用于创建文件或更新时间戳，mkdir 可用于创建目录，mv 可用于移动或重命名路径，其他命令仅允许只读用法。",
+  "允许使用 sh、bash 执行 skills 目录内的 .sh 文件，使用 python、python3 执行 skills 目录内的 .py 文件，使用 node 执行 skills 目录内的 .js、.mjs、.cjs 文件；脚本路径必须是解释器的第一个参数，且不能逃逸 skills 目录。",
   "不支持 shell 运算符、重定向或命令替换；严禁权限命令、删除命令和磁盘管理命令。",
 ].join(" ");
 
@@ -78,7 +94,7 @@ export function createBashTool(
     if (executable === undefined || !allowedCommands.has(executable)) {
       throw new Error(`Command "${executable ?? ""}" is not allowed`);
     }
-    validateArguments(executable, args);
+    validateArguments(executable, args, cwd);
     return executor(executable, args, cwd);
   };
   return Object.assign(bash, {
@@ -133,8 +149,9 @@ function splitCommand(command: string): string[] {
  * Rejects process-spawning modes exposed by otherwise read-only commands.
  * @param executable Approved executable name.
  * @param args Parsed process arguments.
+ * @param cwd Working directory used to constrain skill script paths.
  */
-function validateArguments(executable: string, args: string[]): void {
+function validateArguments(executable: string, args: string[], cwd: string): void {
   if (
     executable === "find"
     && args.some((argument) => [
@@ -153,6 +170,63 @@ function validateArguments(executable: string, args: string[]): void {
   ) {
     throw new Error("Process-spawning rg options are not allowed");
   }
+  const extensions = scriptExtensions.get(executable);
+  if (extensions !== undefined) validateSkillScript(executable, args, cwd, extensions);
+}
+
+/**
+ * Restricts an interpreter invocation to an existing script inside cwd/skills.
+ * @param executable Approved script interpreter.
+ * @param args Interpreter arguments beginning with the script path.
+ * @param cwd Agent working directory containing the skills directory.
+ * @param extensions File extensions accepted by the selected interpreter.
+ */
+function validateSkillScript(
+  executable: string,
+  args: string[],
+  cwd: string,
+  extensions: ReadonlySet<string>,
+): void {
+  const script = args[0];
+  if (script === undefined || script.startsWith("-")) {
+    throw new Error(`Command "${executable}" must execute a script under the skills directory`);
+  }
+  if (!extensions.has(extname(script).toLowerCase())) {
+    throw new Error(`Command "${executable}" cannot execute script type "${extname(script)}"`);
+  }
+
+  const skillsDirectory = resolve(cwd, "skills");
+  const scriptPath = resolve(cwd, script);
+  if (!isPathInside(skillsDirectory, scriptPath)) {
+    throw new Error(`Script "${script}" must be located under the skills directory`);
+  }
+
+  let realSkillsDirectory: string;
+  let realScriptPath: string;
+  try {
+    realSkillsDirectory = realpathSync(skillsDirectory);
+    realScriptPath = realpathSync(scriptPath);
+  } catch {
+    throw new Error(`Script "${script}" must reference an existing file under the skills directory`);
+  }
+  if (!isPathInside(realSkillsDirectory, realScriptPath)) {
+    throw new Error(`Script "${script}" must not escape the skills directory through a symbolic link`);
+  }
+  if (!statSync(realScriptPath).isFile()) {
+    throw new Error(`Script "${script}" must reference a file`);
+  }
+}
+
+/**
+ * Checks whether a candidate path is the root itself or one of its descendants.
+ * @param rootPath Absolute root path.
+ * @param candidatePath Absolute candidate path.
+ * @returns Whether the candidate remains within the root.
+ */
+function isPathInside(rootPath: string, candidatePath: string): boolean {
+  const child = relative(rootPath, candidatePath);
+  return child !== ".." && !child.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)
+    && !isAbsolute(child);
 }
 
 /**

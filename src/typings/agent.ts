@@ -15,7 +15,7 @@ export interface AgentOptions {
   tools?: Tools;
   /** Memory whose adapters are exposed as one tool when the Agent is constructed. */
   memory?: Memory;
-  /** Working directory used by the default bash tool. */
+  /** Working directory used by built-in tools, sessions, and skill discovery. */
   cwd?: string;
   /** Existing session identifier to load when the agent is constructed. */
   sessionId?: string;

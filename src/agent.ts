@@ -13,6 +13,7 @@ import {
 import { createBashTool } from "./tools/bash.js";
 import { Tools } from "./tools/tools.js";
 import type { Memory } from "./memory.js";
+import { Skills } from "./skills.js";
 import type {
   AgentEvent,
   AgentInput,
@@ -28,6 +29,7 @@ export class Agent {
   public readonly conversation: Conversation;
   public readonly tools: Tools;
   public readonly memory?: Memory;
+  private readonly skillInstructions: string;
   private readonly cwd: string;
 
   /**
@@ -45,6 +47,9 @@ export class Agent {
       ?? new Tools([createBashTool({ cwd: options.cwd })]);
     this.memory = options.memory;
     if (this.memory !== undefined) this.tools.register(this.memory.retrieveTool());
+    const skills = new Skills(this.cwd);
+    this.skillInstructions = skills.instructions();
+    if (skills.skills.size > 0) this.tools.register(skills.readTool());
   }
 
   /**
@@ -143,7 +148,11 @@ export class Agent {
    * @returns Model options containing the Agent's current tools.
    */
   private createModelOptions(optional: AgentQueryOptions): Optional {
-    const instructions = [this.instructions, optional.instructions]
+    const instructions = [
+      this.instructions,
+      this.skillInstructions,
+      optional.instructions,
+    ]
       .filter((value): value is string => value !== undefined && value !== "")
       .join("\n\n");
     return {

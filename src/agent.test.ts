@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -250,6 +250,57 @@ describe("Agent", () => {
     expect(call.mock.calls.every((invocation) => (
       invocation[2].instructions === "Agent system instructions\n\nTurn instructions"
     ))).toBe(true);
+  });
+
+  it("advertises skill summaries and loads complete instructions through a tool call", async () => {
+    const skillDirectory = join(testCwd, "skills", "code-review");
+    mkdirSync(skillDirectory, { recursive: true });
+    const source = "---\nname: code-review\ndescription: 审查代码缺陷\n---\n\n# 仅按严重度报告\n";
+    writeFileSync(join(skillDirectory, "SKILL.md"), source);
+    const selected = functionCall(
+      "skill-call",
+      "read_full_skill",
+      '{"name":"code-review"}',
+    );
+    const call = vi.fn()
+      .mockImplementationOnce(() => stream(response([selected])))
+      .mockImplementationOnce(() => stream(response([])));
+    const agent = new Agent({
+      llm: { call },
+      tools: new Tools(),
+      cwd: testCwd,
+      instructions: "基础指令",
+    });
+
+    await consume(agent.query("model", "review", { instructions: "本轮指令" }));
+
+    expect(call.mock.calls[0]?.[2].instructions).toContain("基础指令");
+    expect(call.mock.calls[0]?.[2].instructions).toContain("description: 审查代码缺陷");
+    expect(call.mock.calls[0]?.[2].instructions).not.toContain("仅按严重度报告");
+    expect(call.mock.calls[0]?.[2].instructions).toContain("本轮指令");
+    expect(call.mock.calls[0]?.[2].tools).toEqual([
+      expect.objectContaining({ name: "read_full_skill" }),
+    ]);
+    expect(call.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([{
+      type: "function_call_output",
+      call_id: "skill-call",
+      output: source,
+    }]));
+  });
+
+  it("reserves the full-skill reader tool name when skills are discovered", () => {
+    const skillDirectory = join(testCwd, "skills", "sample");
+    mkdirSync(skillDirectory, { recursive: true });
+    writeFileSync(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: sample\ndescription: sample skill\n---\n",
+    );
+
+    expect(() => new Agent({
+      llm: { call: () => stream(response()) },
+      tools: new Tools([tool("read_full_skill", vi.fn())]),
+      cwd: testCwd,
+    })).toThrow('Tool "read_full_skill" is already registered');
   });
 
   it("retrieves memory and updates adapters with only the current task", async () => {

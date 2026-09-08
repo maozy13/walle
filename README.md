@@ -10,6 +10,7 @@ WallE 是一个基于 TypeScript 的 Agent 运行时框架。它通过 NPM 预�
 - 使用统一的 `Agent` 接口运行多轮 Agentic Loop。
 - 自动识别并并行执行模型返回的函数调用。
 - 使用 Zod 定义工具参数，并在工具执行前完成运行时校验。
+- 启动时发现本地技能，并按任务需要渐进加载完整技能说明。
 - 将会话持久化到本地，支持按 session ID 恢复。
 - 通过可插拔的 `MemoryAdapter` 召回和更新长期记忆。
 - 内置受限命令工具和交互式 CLI。
@@ -148,7 +149,7 @@ new Agent(options: AgentOptions)
 | `conversation` | `Conversation` | 否 | 自定义会话容器；默认创建空会话 |
 | `tools` | `Tools` | 否 | 自定义工具集；省略时使用包含受限 `bash` 工具的默认工具集 |
 | `memory` | `Memory` | 否 | 需要注册到 Agent 的记忆系统 |
-| `cwd` | `string` | 否 | 会话、记忆和默认工具的工作目录；默认为 `process.cwd()` |
+| `cwd` | `string` | 否 | 会话、记忆、技能和默认工具的工作目录；默认为 `process.cwd()` |
 | `sessionId` | `string` | 否 | 启动时需要从 `cwd/sessions` 恢复的会话 ID |
 
 `conversation` 与 `sessionId` 通常二选一。若同时传入，Agent 会在提供的 Conversation 对象上加载 `sessionId` 对应的持久化内容。
@@ -217,6 +218,32 @@ agent.query("your-model", "审查这段代码", {
   instructions: "只报告会造成运行错误的问题。",
 });
 ```
+
+## 使用技能
+
+每个技能是 `cwd/skills` 下的一个目录，并包含必需的 `SKILL.md`：
+
+```text
+skills/
+└── code-review/
+    ├── SKILL.md
+    └── scripts/
+```
+
+`SKILL.md` 必须以 YAML front matter 开头。`name` 只能包含小写字母、数字和连字符，并且必须与技能目录名一致：
+
+```md
+---
+name: code-review
+description: 审查代码并定位可能造成运行错误的缺陷
+---
+
+# 执行步骤
+
+按照严重程度检查并报告代码缺陷。
+```
+
+Agent 启动时只把技能的 `name` 和 `description` 注入系统指令。模型判断技能适用后，会调用内置的 `read_full_skill` 工具读取完整文件；工具结果随后进入当前会话，供下一轮模型调用遵循。没有发现技能时，不会注册该工具，也不会增加技能系统指令。
 
 ## 注册自定义工具
 

@@ -117,6 +117,7 @@ WallE 内置以下工具：
  description: |
     在当前工作目录执行一条 bash 命令，返回 stdout 和 stderr。
     出于安全考虑，只允许在当前工作目录下执行以下命令：ls、find、grep 等 read-only 命令，但禁止使用 edit、delete 类参数；允许使用 sed、echo、touch 等编辑命令以及 mkdir、mv 等目录操作。
+    允许使用 `sh`、`bash` 执行 `{cwd}/skills` 内的 `.sh` 文件，使用 `python`、`python3` 执行 `{cwd}/skills` 内的 `.py` 文件，使用 `node` 执行 `{cwd}/skills` 内的 `.js`、`.mjs`、`.cjs` 文件。脚本必须作为解释器的第一个参数，不允许使用 `-c`、`-e` 等方式执行内联代码，也不允许通过相对路径或符号链接逃逸 skills 目录。
     严禁执行任何权限命令：su、sudo、chmod、chown 等
     严禁执行任何删除命令：rm、rmdir 等
     严禁执行任何磁盘操作命令：mount、unmount、fdisk 等，但可以执行 du、df 等查看操作。
