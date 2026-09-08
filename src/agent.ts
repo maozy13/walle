@@ -4,7 +4,7 @@ import type {
   Response,
   ResponseEvent,
   ResponseFunctionCall,
-} from "neuralink";
+} from "@maozy13/neuralink";
 import {
   Conversation,
   fromModelOutput,

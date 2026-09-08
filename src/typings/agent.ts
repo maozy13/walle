@@ -1,4 +1,4 @@
-import type { Connector, InputItem, Optional, Response } from "neuralink";
+import type { Connector, InputItem, Optional, Response } from "@maozy13/neuralink";
 import type { Conversation } from "../conversation.js";
 import type { Tools } from "../tools/tools.js";
 import type { Memory } from "../memory.js";

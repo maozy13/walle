@@ -5,6 +5,6 @@ export { Memory } from "./memory.js";
 export * from "./memory-adapters/index.js";
 export { Tools } from "./tools/index.js";
 export type * from "./tools/index.js";
-export { Connector, ResponsesAPIConverter } from "neuralink";
+export { Connector, ResponsesAPIConverter } from "@maozy13/neuralink";
 export type * from "./typings/index.js";
-export type * from "neuralink";
+export type * from "@maozy13/neuralink";

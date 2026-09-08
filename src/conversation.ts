@@ -1,7 +1,7 @@
 import type {
   InputItem,
   ResponseOutputItem,
-} from "neuralink";
+} from "@maozy13/neuralink";
 import type {
   ConversationInput,
   ConversationItem,

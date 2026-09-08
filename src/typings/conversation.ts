@@ -1,4 +1,4 @@
-import type { InputItem } from "neuralink";
+import type { InputItem } from "@maozy13/neuralink";
 
 /** Role of user-visible text, image, and file conversation items. */
 export type ConversationRole = "user" | "assistant";

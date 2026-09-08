@@ -36,6 +36,14 @@ flowchart LR
 
 ## 安装
 
+### 从 NPM 安装
+
+```bash
+pnpm add @maozy13/walle
+```
+
+`@maozy13/walle` 和它依赖的 `@maozy13/neuralink` 均包含预编译产物，安装完成后即可直接导入使用，无需在应用启动前额外构建。
+
 ### 从源码构建
 
 ```bash
@@ -60,7 +68,7 @@ pnpm add /path/to/walle
 ```json
 {
   "dependencies": {
-    "walle": "workspace:*"
+    "@maozy13/walle": "workspace:*"
   }
 }
 ```
@@ -81,7 +89,7 @@ import {
   Connector,
   ResponsesAPIConverter,
   type Response,
-} from "walle";
+} from "@maozy13/walle";
 
 const apiKey = process.env.LLM_API_KEY;
 if (apiKey === undefined) {
@@ -178,7 +186,7 @@ SDK 会自动把当前会话和工具 Schema 发送给模型、执行函数调�
 如果业务既需要处理事件，又需要最终响应，可以使用以下消费方式：
 
 ```ts
-import type { AgentEvent, AgentQuery, Response } from "walle";
+import type { AgentEvent, AgentQuery, Response } from "@maozy13/walle";
 
 /** 消费完整 Agent 任务，并返回最后一轮规范化响应。 */
 async function consumeAgent(
@@ -217,7 +225,7 @@ agent.query("your-model", "审查这段代码", {
 如果集成方尚未直接依赖 Zod，请先运行 `pnpm add zod`。不要依赖 WallE 的传递依赖来解析应用自己的 import。
 
 ```ts
-import { Agent, Tools, type FuncTool } from "walle";
+import { Agent, Tools, type FuncTool } from "@maozy13/walle";
 import { z } from "zod";
 
 const weatherParameters = z.object({
@@ -288,7 +296,7 @@ const agent = new Agent({
 如需自行管理上下文，可以显式创建 `Conversation`：
 
 ```ts
-import { Agent, Conversation } from "walle";
+import { Agent, Conversation } from "@maozy13/walle";
 
 const conversation = new Conversation([], "customer-support-42", process.cwd());
 const agent = new Agent({ llm, conversation });
@@ -300,7 +308,7 @@ const agent = new Agent({ llm, conversation });
 `TermsMemoryAdapter` 将术语表保存在 `<cwd>/memories/TERMS.md`：
 
 ```ts
-import { Agent, Memory, TermsMemoryAdapter } from "walle";
+import { Agent, Memory, TermsMemoryAdapter } from "@maozy13/walle";
 
 const cwd = process.cwd();
 const memory = new Memory([
@@ -319,7 +327,7 @@ const agent = new Agent({
 自定义适配器需要实现同名的 `retrieve` 和 `update` 操作：
 
 ```ts
-import type { MemoryAdapter, MemoryOperation } from "walle";
+import type { MemoryAdapter, MemoryOperation } from "@maozy13/walle";
 
 /** 为记忆操作附加模型可读的名称和说明。 */
 function memoryOperation(

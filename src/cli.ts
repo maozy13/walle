@@ -16,7 +16,7 @@ import {
   type NormalizedParams,
   type Response,
   type ResponseEvent,
-} from "neuralink";
+} from "@maozy13/neuralink";
 
 const CONFIG_FILE = ".walle";
 const INSTRUCTION_FILE = "WALLE.md";

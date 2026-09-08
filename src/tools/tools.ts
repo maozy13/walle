@@ -1,4 +1,4 @@
-import type { Tool } from "neuralink";
+import type { Tool } from "@maozy13/neuralink";
 import { z } from "zod";
 import type { FuncTool } from "../typings/tool.js";
 
