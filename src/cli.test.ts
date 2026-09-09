@@ -162,10 +162,12 @@ afterEach(() => {
 });
 
 describe("resolveCliConfig", () => {
-  it("merges WALLE.md, .walle, and explicit command-line overrides", () => {
+  it("merges WALLE.md, workspace walle.json, and explicit command-line overrides", () => {
     const cwd = temporaryDirectory();
+    const home = temporaryDirectory();
+    mkdirSync(join(home, ".walle", "walle.json"), { recursive: true });
     writeFileSync(join(cwd, "WALLE.md"), "default instruction", "utf8");
-    writeFileSync(join(cwd, ".walle"), JSON.stringify({
+    writeFileSync(join(cwd, "walle.json"), JSON.stringify({
       baseUrl: "https://config.test/responses",
       model: "config-model",
       apiKey: "config-key",
@@ -181,7 +183,7 @@ describe("resolveCliConfig", () => {
       "--instruction", "cli instruction",
       "--session", "cli-session",
       "--no-log",
-    ], cwd)).toEqual({
+    ], cwd, home)).toEqual({
       baseUrl: "https://cli.test/responses",
       model: "cli-model",
       apiKey: "cli-key",
@@ -191,15 +193,49 @@ describe("resolveCliConfig", () => {
     });
   });
 
+  it("uses the home configuration only when the workspace configuration is absent", () => {
+    const cwd = temporaryDirectory();
+    const home = temporaryDirectory();
+    mkdirSync(join(home, ".walle"));
+    writeFileSync(join(home, ".walle", "walle.json"), JSON.stringify({
+      baseUrl: "https://home.test/responses",
+      model: "home-model",
+      apiKey: "home-key",
+      log: true,
+    }), "utf8");
+
+    expect(resolveCliConfig([], cwd, home)).toEqual({
+      baseUrl: "https://home.test/responses",
+      model: "home-model",
+      apiKey: "home-key",
+      log: true,
+    });
+  });
+
+  it("selects the workspace configuration as a whole without merging the home file", () => {
+    const cwd = temporaryDirectory();
+    const home = temporaryDirectory();
+    mkdirSync(join(home, ".walle"));
+    writeFileSync(join(home, ".walle", "walle.json"), JSON.stringify({
+      baseUrl: "https://home.test/responses",
+      model: "home-model",
+      apiKey: "home-key",
+    }), "utf8");
+    writeFileSync(join(cwd, "walle.json"), JSON.stringify({ model: "workspace-model" }), "utf8");
+
+    expect(() => resolveCliConfig([], cwd, home)).toThrow("Invalid CLI configuration");
+  });
+
   it("uses WALLE.md and a false logging default when optional config is absent", () => {
     const cwd = temporaryDirectory();
+    const home = temporaryDirectory();
     writeFileSync(join(cwd, "WALLE.md"), "workspace instruction", "utf8");
 
     expect(resolveCliConfig([
       "--base-url=https://api.test/responses",
       "--model=model",
       "--api-key=key",
-    ], cwd)).toEqual({
+    ], cwd, home)).toEqual({
       baseUrl: "https://api.test/responses",
       model: "model",
       apiKey: "key",
@@ -213,20 +249,21 @@ describe("resolveCliConfig", () => {
   });
 
   it("reports malformed, unsupported, unreadable, and incomplete configuration", () => {
+    const home = temporaryDirectory();
     const malformed = temporaryDirectory();
-    writeFileSync(join(malformed, ".walle"), "{", "utf8");
-    expect(() => resolveCliConfig([], malformed)).toThrow("malformed JSON");
+    writeFileSync(join(malformed, "walle.json"), "{", "utf8");
+    expect(() => resolveCliConfig([], malformed, home)).toThrow("malformed JSON");
 
     const unsupported = temporaryDirectory();
-    writeFileSync(join(unsupported, ".walle"), JSON.stringify({ extra: true }), "utf8");
-    expect(() => resolveCliConfig([], unsupported)).toThrow("Invalid .walle");
+    writeFileSync(join(unsupported, "walle.json"), JSON.stringify({ extra: true }), "utf8");
+    expect(() => resolveCliConfig([], unsupported, home)).toThrow("Invalid configuration file");
 
     const unreadable = temporaryDirectory();
-    mkdirSync(join(unreadable, ".walle"));
-    expect(() => resolveCliConfig([], unreadable)).toThrow();
+    mkdirSync(join(unreadable, "walle.json"));
+    expect(() => resolveCliConfig([], unreadable, home)).toThrow();
 
-    expect(() => resolveCliConfig([], temporaryDirectory())).toThrow("Invalid CLI configuration");
-    expect(() => resolveCliConfig(["positional"], temporaryDirectory())).toThrow();
+    expect(() => resolveCliConfig([], temporaryDirectory(), home)).toThrow("Invalid CLI configuration");
+    expect(() => resolveCliConfig(["positional"], temporaryDirectory(), home)).toThrow();
   });
 });
 
@@ -357,7 +394,7 @@ describe("runCli", () => {
     const sessionDirectory = join(cwd, "sessions", "existing");
     mkdirSync(join(sessionDirectory, "ARCHIVES"), { recursive: true });
     writeFileSync(join(sessionDirectory, "CONVERSATION.md"), "", "utf8");
-    writeFileSync(join(cwd, ".walle"), JSON.stringify({
+    writeFileSync(join(cwd, "walle.json"), JSON.stringify({
       baseUrl: "https://api.test/responses",
       model: "model",
       apiKey: "key",

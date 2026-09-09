@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
@@ -18,7 +19,8 @@ import {
   type ResponseEvent,
 } from "@maozy13/neuralink";
 
-const CONFIG_FILE = ".walle";
+const CONFIG_FILE = "walle.json";
+const USER_CONFIG_DIRECTORY = ".walle";
 const INSTRUCTION_FILE = "WALLE.md";
 const HELP = `Usage: walle [options]
 
@@ -266,22 +268,26 @@ function parseCliArguments(args: string[]): ParsedArguments {
 
 /**
  * Loads and validates the optional JSON configuration file.
- * @param cwd Working directory containing `.walle`.
+ * @param paths Configuration paths in descending priority order.
  * @returns Validated persisted configuration, or an empty object when absent.
  */
-function readConfig(cwd: string): AgentCliConfig {
-  const path = resolve(cwd, CONFIG_FILE);
-  const source = readOptionalFile(path);
-  if (source === undefined) return {};
-  let value: unknown;
-  try {
-    value = JSON.parse(source);
-  } catch (error) {
-    throw new Error(`Invalid ${CONFIG_FILE}: malformed JSON`, { cause: error });
+function readConfig(paths: string[]): AgentCliConfig {
+  for (const path of paths) {
+    const source = readOptionalFile(path);
+    if (source === undefined) continue;
+    let value: unknown;
+    try {
+      value = JSON.parse(source);
+    } catch (error) {
+      throw new Error(`Invalid configuration file ${path}: malformed JSON`, { cause: error });
+    }
+    const result = configSchema.safeParse(value);
+    if (!result.success) {
+      throw new Error(`Invalid configuration file ${path}: ${z.prettifyError(result.error)}`);
+    }
+    return result.data;
   }
-  const result = configSchema.safeParse(value);
-  if (!result.success) throw new Error(`Invalid ${CONFIG_FILE}: ${z.prettifyError(result.error)}`);
-  return result.data;
+  return {};
 }
 
 /**
@@ -311,15 +317,20 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
  * Resolves CLI configuration using documented precedence rules.
  * @param args Arguments excluding executable and script paths.
  * @param cwd Working directory containing CLI configuration files.
+ * @param home Home directory containing the fallback `.walle/walle.json` file.
  * @returns Fully validated configuration, or undefined when help was requested.
  */
 export function resolveCliConfig(
   args: string[],
   cwd: string = process.cwd(),
+  home: string = homedir(),
 ): ResolvedAgentCliConfig | undefined {
   const cli = parseCliArguments(args);
   if (cli.help) return undefined;
-  const file = readConfig(cwd);
+  const file = readConfig([
+    resolve(cwd, CONFIG_FILE),
+    resolve(home, USER_CONFIG_DIRECTORY, CONFIG_FILE),
+  ]);
   const defaultInstruction = readOptionalFile(resolve(cwd, INSTRUCTION_FILE));
   const merged = {
     ...(defaultInstruction === undefined ? {} : { instruction: defaultInstruction }),
@@ -467,7 +478,7 @@ export async function runCli(
     fetch,
   },
 ): Promise<void> {
-  const config = resolveCliConfig(args, runtime.cwd);
+  const config = resolveCliConfig(args, runtime.cwd, runtime.home ?? homedir());
   if (config === undefined) {
     runtime.output.write(HELP);
     return;

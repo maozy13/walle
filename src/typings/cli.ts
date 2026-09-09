@@ -30,8 +30,10 @@ export interface ResolvedAgentCliConfig extends AgentCliConfig {
 
 /** Injectable process resources used by the CLI runtime and its tests. */
 export interface AgentCliRuntime {
-  /** Working directory containing `.walle`, `WALLE.md`, sessions, and logs. */
+  /** Working directory containing `walle.json`, `WALLE.md`, sessions, and logs. */
   cwd: string;
+  /** Optional home directory override used to locate `.walle/walle.json`. */
+  home?: string;
   /** Stream from which interactive user requests are read. */
   input: Readable;
   /** Stream receiving prompts and model output. */

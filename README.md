@@ -416,7 +416,7 @@ node bin/walle.js \
 
 CLI 当前使用 Responses API 转换器。输入 `/exit` 或 `/quit` 退出。
 
-也可以在运行目录创建 `.walle`：
+也可以在运行目录创建 `walle.json`：
 
 ```json
 {
@@ -428,9 +428,9 @@ CLI 当前使用 Responses API 转换器。输入 `/exit` 或 `/quit` 退出。
 }
 ```
 
-运行目录中的 `WALLE.md` 会作为默认系统指令；`.walle` 中的 `instruction` 会覆盖它，命令行参数的优先级最高。启用日志后，记录写入 `logs/<session-id>.log`。
+CLI 会优先读取运行目录中的 `walle.json`；仅当该文件不存在时，才读取 `~/.walle/walle.json`。配置文件按文件级选择，不会逐项合并。运行目录中的 `WALLE.md` 会作为默认系统指令；选中配置文件中的 `instruction` 会覆盖它，命令行参数的优先级最高。启用日志后，记录写入 `logs/<session-id>.log`。
 
-不要提交包含真实 API Key 的 `.walle`，也应避免通过会被 shell 历史记录的命令行参数传入密钥。
+不要提交包含真实 API Key 的 `walle.json`，也应避免通过会被 shell 历史记录的命令行参数传入密钥。
 
 查看全部参数：
 
