@@ -32,6 +32,7 @@ export class Agent {
   public readonly memory?: Memory;
   private readonly skillInstructions: string;
   private readonly cwd: string;
+  private readonly home?: string;
 
   /**
    * Creates an agent backed by a NeuralLink-compatible connector.
@@ -39,6 +40,7 @@ export class Agent {
    */
   public constructor(options: AgentOptions) {
     this.cwd = options.cwd ?? process.cwd();
+    this.home = options.home;
     this.instructions = options.instructions ?? "";
     this.llm = options.llm;
     this.conversation = options.conversation
@@ -48,7 +50,7 @@ export class Agent {
       ?? new Tools([createBashTool({ cwd: options.cwd })]);
     this.memory = options.memory;
     if (this.memory !== undefined) this.tools.register(this.memory.retrieveTool());
-    const skills = new Skills(this.cwd);
+    const skills = new Skills(this.cwd, this.home);
     this.skillInstructions = skills.instructions();
     if (skills.skills.size > 0) this.tools.register(skills.readTool());
   }
@@ -113,6 +115,7 @@ export class Agent {
       conversation: new Conversation(taskItems, undefined, join(this.cwd, ".walle")),
       tools: new Tools([memory.updateTool()]),
       cwd: this.cwd,
+      ...(this.home === undefined ? {} : { home: this.home }),
     });
     const query = agent.query(model, "请根据以上会话上下文判断并完成记忆更新。");
     while (!(await query.next()).done) {

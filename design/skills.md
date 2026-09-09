@@ -33,6 +33,7 @@ front matter 元数据是以一对分割线 “---“ 包围的 YAML 结构。�
 1. `{cwd}/skills` 目录
 2. `{cwd}/.walle/skills` 目录
 3. `~/.walle/skills` 目录
+4. `~/.agents/skills` 目录
 
 Agent 启动时从以上位置增量读取技能包，但遇到同名技能包时，只保留位置优先级更高的技能包。
 

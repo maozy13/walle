@@ -27,7 +27,7 @@ export class Skills {
   public readonly directories: readonly string[];
 
   /**
-   * Scans skill packages from project, project-state, and user-level directories.
+   * Scans skill packages from project, WallE, and shared agent directories.
    * @param cwd Agent working directory used to resolve project skill locations.
    * @param home User home directory used to resolve the global skill location.
    */
@@ -36,6 +36,7 @@ export class Skills {
       resolve(cwd, "skills"),
       resolve(cwd, ".walle", "skills"),
       resolve(home, ".walle", "skills"),
+      resolve(home, ".agents", "skills"),
     ];
     for (const directory of this.directories) this.scan(directory);
   }

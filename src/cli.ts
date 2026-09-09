@@ -531,6 +531,7 @@ export async function runCli(
   const agent = new Agent({
     llm,
     cwd: runtime.cwd,
+    home: runtime.home ?? homedir(),
     conversation: new Conversation([], config.session, state.configDirectory),
     ...(config.instruction === undefined ? {} : { instructions: config.instruction }),
     ...(config.session === undefined ? {} : { sessionId: config.session }),

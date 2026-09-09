@@ -17,6 +17,8 @@ export interface AgentOptions {
   memory?: Memory;
   /** Working directory used by built-in tools and skill discovery. */
   cwd?: string;
+  /** User home directory used to discover user-level skill packages. */
+  home?: string;
   /** Existing session identifier to load when the agent is constructed. */
   sessionId?: string;
 }

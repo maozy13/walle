@@ -150,6 +150,7 @@ new Agent(options: AgentOptions)
 | `tools` | `Tools` | 否 | 自定义工具集；省略时使用包含受限 `bash` 工具的默认工具集 |
 | `memory` | `Memory` | 否 | 需要注册到 Agent 的记忆系统 |
 | `cwd` | `string` | 否 | 记忆、技能和默认工具的工作目录；默认为 `process.cwd()` |
+| `home` | `string` | 否 | 用户级技能目录的主目录；默认为当前用户主目录 |
 | `sessionId` | `string` | 否 | 启动时需要从 `cwd/.walle/sessions` 恢复的会话 ID |
 
 `conversation` 与 `sessionId` 通常二选一。若同时传入，Agent 会在提供的 Conversation 对象上加载 `sessionId` 对应的持久化内容。
@@ -250,6 +251,7 @@ Agent 按以下优先级增量扫描技能目录：
 1. `cwd/skills`
 2. `cwd/.walle/skills`
 3. `~/.walle/skills`
+4. `~/.agents/skills`
 
 不同目录中的技能会合并；出现同名技能时，只使用优先级更高位置中的版本。
 

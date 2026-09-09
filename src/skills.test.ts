@@ -84,11 +84,14 @@ describe("Skills", () => {
     const localShared = "---\nname: shared\ndescription: cwd version\n---\nlocal";
     const stateShared = "---\nname: shared\ndescription: state version\n---\nstate";
     const globalShared = "---\nname: shared\ndescription: global version\n---\nglobal";
+    const agentsShared = "---\nname: shared\ndescription: agents version\n---\nagents";
     createSkill(cwd, "shared", localShared);
     createSkill(join(cwd, ".walle"), "shared", stateShared);
     createSkill(join(home, ".walle"), "shared", globalShared);
+    createSkill(join(home, ".agents"), "shared", agentsShared);
     createSkill(join(cwd, ".walle"), "state-only", "---\nname: state-only\ndescription: state only\n---\n");
     createSkill(join(home, ".walle"), "global-only", "---\nname: global-only\ndescription: global only\n---\n");
+    createSkill(join(home, ".agents"), "agents-only", "---\nname: agents-only\ndescription: agents only\n---\n");
 
     const skills = new Skills(cwd, home);
 
@@ -96,14 +99,22 @@ describe("Skills", () => {
       join(cwd, "skills"),
       join(cwd, ".walle", "skills"),
       join(home, ".walle", "skills"),
+      join(home, ".agents", "skills"),
     ]);
-    expect([...skills.skills.keys()]).toEqual(["shared", "state-only", "global-only"]);
+    expect([...skills.skills.keys()]).toEqual([
+      "shared",
+      "state-only",
+      "global-only",
+      "agents-only",
+    ]);
     expect(skills.skills.get("shared")?.metadata.description).toBe("cwd version");
     expect(skills.read("shared")).toBe(localShared);
     expect(skills.instructions()).toContain("description: state only");
     expect(skills.instructions()).toContain("description: global only");
+    expect(skills.instructions()).toContain("description: agents only");
     expect(skills.instructions()).not.toContain("state version");
     expect(skills.instructions()).not.toContain("global version");
+    expect(skills.instructions()).not.toContain("agents version");
   });
 
   it.each([

@@ -8,6 +8,7 @@ import {
   Memory,
   Tools,
   type AgentEvent,
+  type AgentOptions,
   type Response,
   type ResponseEvent,
   type ResponseFunctionCall,
@@ -145,6 +146,15 @@ describe("Agent", () => {
   let testCwd: string;
   let cwdSpy: ReturnType<typeof vi.spyOn>;
 
+  /**
+   * Creates an Agent isolated from skills installed in the real user home directory.
+   * @param options Agent options used by the current test.
+   * @returns Agent whose user-level skills resolve under the temporary test directory.
+   */
+  function createAgent(options: AgentOptions): Agent {
+    return new Agent({ ...options, home: testCwd });
+  }
+
   beforeEach(() => {
     testCwd = mkdtempSync(join(tmpdir(), "walle-agent-"));
     cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(testCwd);
@@ -166,7 +176,7 @@ describe("Agent", () => {
       { type: "response.message_text.delta", index: 0, delta: "好" },
     ]));
     const conversation = new Conversation();
-    const result = await consume(new Agent({
+    const result = await consume(createAgent({
       llm: { call },
       tools: new Tools(),
       conversation,
@@ -199,7 +209,7 @@ describe("Agent", () => {
 
   it("advertises the default native bash tool", async () => {
     const call = vi.fn(() => stream(response([])));
-    await consume(new Agent({
+    await consume(createAgent({
       llm: { call },
       cwd: "/workspace",
       conversation: new Conversation([], "test", testCwd),
@@ -216,7 +226,7 @@ describe("Agent", () => {
       { type: "text", role: "user", text: "historical" },
     ]);
     const call = vi.fn(() => stream(response([])));
-    const agent = new Agent({
+    const agent = createAgent({
       llm: { call },
       tools: new Tools(),
       cwd: testCwd,
@@ -245,7 +255,7 @@ describe("Agent", () => {
     const call = vi.fn()
       .mockImplementationOnce(() => stream(response([selected])))
       .mockImplementationOnce(() => stream(response([])));
-    const agent = new Agent({
+    const agent = createAgent({
       llm: { call },
       tools: new Tools([tool("value", () => "ok")]),
       instructions: "Agent system instructions",
@@ -273,7 +283,7 @@ describe("Agent", () => {
     const call = vi.fn()
       .mockImplementationOnce(() => stream(response([selected])))
       .mockImplementationOnce(() => stream(response([])));
-    const agent = new Agent({
+    const agent = createAgent({
       llm: { call },
       tools: new Tools(),
       cwd: testCwd,
@@ -304,7 +314,7 @@ describe("Agent", () => {
       "---\nname: sample\ndescription: sample skill\n---\n",
     );
 
-    expect(() => new Agent({
+    expect(() => createAgent({
       llm: { call: () => stream(response()) },
       tools: new Tools([tool("read_full_skill", vi.fn())]),
       cwd: testCwd,
@@ -339,7 +349,7 @@ describe("Agent", () => {
     ], "conversation-id");
     const tools = new Tools();
     const exec = vi.spyOn(tools, "exec");
-    const agent = new Agent({
+    const agent = createAgent({
       llm: { call },
       tools,
       memory: new Memory([adapter]),
@@ -376,7 +386,7 @@ describe("Agent", () => {
   });
 
   it("reserves the memory retrieval tool name when memory is enabled", () => {
-    expect(() => new Agent({
+    expect(() => createAgent({
       llm: { call: () => stream(response()) },
       tools: new Tools([tool("memory.retrieve", vi.fn())]),
       memory: new Memory(),
@@ -395,7 +405,7 @@ describe("Agent", () => {
         .mockImplementationOnce(() => stream(response([selected])))
         .mockImplementationOnce(() => stream(response([])));
 
-      await consume(new Agent({
+      await consume(createAgent({
         llm: { call },
         tools: new Tools(),
         memory: new Memory(),
@@ -421,7 +431,7 @@ describe("Agent", () => {
         throw new Error("model failed");
       })
       .mockImplementationOnce(() => stream(response([])));
-    const agent = new Agent({
+    const agent = createAgent({
       llm: { call },
       tools: new Tools(),
       memory,
@@ -449,7 +459,7 @@ describe("Agent", () => {
       .mockImplementationOnce(() => lifecycle(response(firstCalls, "completed", "response-1")))
       .mockImplementationOnce(() => lifecycle(response([secondCall], "completed", "response-2")))
       .mockImplementationOnce(() => lifecycle(final));
-    const agent = new Agent({ llm: { call }, tools });
+    const agent = createAgent({ llm: { call }, tools });
 
     const result = await consume(agent.query("model", "run"));
 
@@ -484,7 +494,7 @@ describe("Agent", () => {
       .mockImplementationOnce(() => stream(response([selected])))
       .mockImplementationOnce(() => stream(response([])));
 
-    await consume(new Agent({ llm: { call }, tools }).query("model", "run"));
+    await consume(createAgent({ llm: { call }, tools }).query("model", "run"));
 
     const output = (call.mock.calls[1]?.[1] as unknown[]).at(-1);
     expect(output).toMatchObject({
@@ -507,7 +517,7 @@ describe("Agent", () => {
       .mockImplementationOnce(() => stream(response(calls)))
       .mockImplementationOnce(() => stream(response([])));
 
-    await consume(new Agent({ llm: { call }, tools }).query("model", "run"));
+    await consume(createAgent({ llm: { call }, tools }).query("model", "run"));
 
     expect(call.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([
       { type: "function_call_output", call_id: "call-1", output: "plain" },
@@ -529,7 +539,7 @@ describe("Agent", () => {
         { type: "response.function_call_arguments.delta", index: 0, delta: "{}" },
       ]))
       .mockImplementationOnce(() => lifecycle(incomplete));
-    const agent = new Agent({ llm: { call }, tools: new Tools() });
+    const agent = createAgent({ llm: { call }, tools: new Tools() });
 
     const first = await consume(agent.query("model", "one"));
     const second = await consume(agent.query("model", "two"));
@@ -568,14 +578,14 @@ describe("Agent", () => {
   ] as const)("rejects invalid event sequences %#", async (events, message) => {
     const call = vi.fn(() => stream(response([]), [...events] as ResponseEvent[]));
 
-    await expect(consume(new Agent({ llm: { call }, tools: new Tools() })
+    await expect(consume(createAgent({ llm: { call }, tools: new Tools() })
       .query("model", "run"))).rejects.toThrow(message);
   });
 
   it("uses an empty event id when the provider omits a response id", async () => {
     const final = response();
     delete final.id;
-    const { events } = await consume(new Agent({
+    const { events } = await consume(createAgent({
       llm: { call: () => lifecycle(final) },
       tools: new Tools(),
     }).query("model", "run"));
