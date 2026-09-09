@@ -1,41 +1,18 @@
 import { execFile } from "node:child_process";
-import { realpathSync, statSync } from "node:fs";
-import { extname, isAbsolute, relative, resolve } from "node:path";
+import { basename } from "node:path";
 import { z } from "zod";
 import type { FuncTool } from "../typings/tool.js";
 
-const allowedCommands = new Set([
-  "cat",
-  "df",
-  "du",
-  "echo",
-  "file",
-  "find",
-  "grep",
-  "head",
-  "ls",
-  "mkdir",
-  "mv",
-  "pwd",
-  "rg",
-  "sed",
-  "sh",
-  "stat",
-  "tail",
-  "touch",
-  "wc",
-  "bash",
-  "node",
-  "python",
-  "python3",
-]);
-
-const scriptExtensions = new Map<string, ReadonlySet<string>>([
-  ["sh", new Set([".sh"])],
-  ["bash", new Set([".sh"])],
-  ["python", new Set([".py"])],
-  ["python3", new Set([".py"])],
-  ["node", new Set([".js", ".mjs", ".cjs"])],
+const forbiddenCommands = new Set([
+  "chmod",
+  "chown",
+  "fdisk",
+  "mount",
+  "rm",
+  "rmdir",
+  "su",
+  "sudo",
+  "unmount",
 ]);
 
 /** Captured output from the built-in bash tool. */
@@ -48,10 +25,8 @@ export interface BashOutput {
 
 /** Process runner used by the built-in bash tool. */
 export type BashExecutor = (
-  /** Approved executable name. */
-  executable: string,
-  /** Validated process arguments. */
-  args: string[],
+  /** Bash source to execute. */
+  command: string,
   /** Working directory for the process. */
   cwd: string,
 ) => Promise<BashOutput>;
@@ -69,14 +44,15 @@ const bashParameters = z.object({
     error: 'bash requires a non-empty string argument named "command"',
   }).trim().min(1, {
     error: 'bash requires a non-empty string argument named "command"',
-  }).describe("一条使用白名单可执行文件的命令"),
+  }).describe("一条 bash 命令"),
 });
 
 const bashDescription = [
-  "在当前工作目录执行一条命令并返回 stdout 和 stderr。",
-  "仅支持 cat、df、du、echo、file、find、grep、head、ls、mkdir、mv、pwd、rg、sed、stat、tail、touch、wc；其中 sed 可用于编辑文件，echo 可用于输出内容，touch 可用于创建文件或更新时间戳，mkdir 可用于创建目录，mv 可用于移动或重命名路径，其他命令仅允许只读用法。",
-  "允许使用 sh、bash 执行 skills 目录内的 .sh 文件，使用 python、python3 执行 skills 目录内的 .py 文件，使用 node 执行 skills 目录内的 .js、.mjs、.cjs 文件；脚本路径必须是解释器的第一个参数，且不能逃逸 skills 目录。",
-  "不支持 shell 运算符、重定向或命令替换；严禁权限命令、删除命令和磁盘管理命令。",
+  "在当前工作目录执行一条 bash 命令，返回 stdout 和 stderr。",
+  "出于安全考虑：",
+  "严禁执行任何权限命令：su、sudo、chmod、chown 等；",
+  "严禁执行任何删除命令：rm、rmdir 等；",
+  "严禁执行任何磁盘操作命令：mount、unmount、fdisk 等，但可以执行 du、df 等查看操作。",
 ].join(" ");
 
 /**
@@ -88,14 +64,10 @@ export function createBashTool(
   options: BashToolOptions = {},
 ): FuncTool<typeof bashParameters, BashOutput> {
   const cwd = options.cwd ?? process.cwd();
-  const executor = options.executor ?? executeFile;
+  const executor = options.executor ?? executeBash;
   const bash = async ({ command }: z.output<typeof bashParameters>): Promise<BashOutput> => {
-    const [executable, ...args] = splitCommand(command);
-    if (executable === undefined || !allowedCommands.has(executable)) {
-      throw new Error(`Command "${executable ?? ""}" is not allowed`);
-    }
-    validateArguments(executable, args, cwd);
-    return executor(executable, args, cwd);
+    validateCommand(command);
+    return executor(command, cwd);
   };
   return Object.assign(bash, {
     description: bashDescription,
@@ -104,147 +76,70 @@ export function createBashTool(
 }
 
 /**
- * Splits a conservative shell-like command line into process arguments.
- * @param command Model-selected command text.
- * @returns Executable followed by its arguments.
+ * Rejects commands explicitly prohibited by the tool contract.
+ * @param command Bash source selected by the model.
  */
-function splitCommand(command: string): string[] {
-  const tokens: string[] = [];
-  let token = "";
+function validateCommand(command: string): void {
+  for (const word of shellWords(command)) {
+    const executable = basename(word);
+    if (forbiddenCommands.has(executable)) {
+      throw new Error(`Command "${executable}" is not allowed`);
+    }
+  }
+}
+
+/**
+ * Extracts shell words while preserving quoted text as one value.
+ * @param command Bash source to inspect.
+ * @returns Decoded words that may identify invoked executables.
+ */
+function shellWords(command: string): string[] {
+  const words: string[] = [];
+  let word = "";
   let quote: "'" | "\"" | undefined;
   let escaped = false;
 
-  for (const character of command.trim()) {
+  const push = (): void => {
+    if (word !== "") words.push(word);
+    word = "";
+  };
+
+  for (const character of command) {
     if (escaped) {
-      token += character;
+      word += character;
       escaped = false;
     } else if (character === "\\" && quote !== "'") {
       escaped = true;
     } else if (quote !== undefined) {
       if (character === quote) quote = undefined;
-      else token += character;
+      else word += character;
     } else if (character === "'" || character === "\"") {
       quote = character;
-    } else if (/\s/.test(character)) {
-      if (token !== "") {
-        tokens.push(token);
-        token = "";
-      }
+    } else if (/\s/.test(character) || ";&|><`(){}".includes(character)) {
+      push();
     } else {
-      if (";&|><`$(){}".includes(character)) {
-        throw new Error(`Shell operator "${character}" is not allowed`);
-      }
-      token += character;
+      word += character;
     }
   }
 
   if (escaped || quote !== undefined) {
     throw new Error("Command contains an unfinished escape or quote");
   }
-  if (token !== "") tokens.push(token);
-  return tokens;
+  push();
+  return words;
 }
 
 /**
- * Rejects process-spawning modes exposed by otherwise read-only commands.
- * @param executable Approved executable name.
- * @param args Parsed process arguments.
- * @param cwd Working directory used to constrain skill script paths.
- */
-function validateArguments(executable: string, args: string[], cwd: string): void {
-  if (
-    executable === "find"
-    && args.some((argument) => [
-      "-delete",
-      "-exec",
-      "-execdir",
-      "-ok",
-      "-okdir",
-    ].includes(argument))
-  ) {
-    throw new Error("Mutating find actions are not allowed");
-  }
-  if (
-    executable === "rg"
-    && args.some((argument) => argument === "--pre" || argument.startsWith("--pre="))
-  ) {
-    throw new Error("Process-spawning rg options are not allowed");
-  }
-  const extensions = scriptExtensions.get(executable);
-  if (extensions !== undefined) validateSkillScript(executable, args, cwd, extensions);
-}
-
-/**
- * Restricts an interpreter invocation to an existing script inside cwd/skills.
- * @param executable Approved script interpreter.
- * @param args Interpreter arguments beginning with the script path.
- * @param cwd Agent working directory containing the skills directory.
- * @param extensions File extensions accepted by the selected interpreter.
- */
-function validateSkillScript(
-  executable: string,
-  args: string[],
-  cwd: string,
-  extensions: ReadonlySet<string>,
-): void {
-  const script = args[0];
-  if (script === undefined || script.startsWith("-")) {
-    throw new Error(`Command "${executable}" must execute a script under the skills directory`);
-  }
-  if (!extensions.has(extname(script).toLowerCase())) {
-    throw new Error(`Command "${executable}" cannot execute script type "${extname(script)}"`);
-  }
-
-  const skillsDirectory = resolve(cwd, "skills");
-  const scriptPath = resolve(cwd, script);
-  if (!isPathInside(skillsDirectory, scriptPath)) {
-    throw new Error(`Script "${script}" must be located under the skills directory`);
-  }
-
-  let realSkillsDirectory: string;
-  let realScriptPath: string;
-  try {
-    realSkillsDirectory = realpathSync(skillsDirectory);
-    realScriptPath = realpathSync(scriptPath);
-  } catch {
-    throw new Error(`Script "${script}" must reference an existing file under the skills directory`);
-  }
-  if (!isPathInside(realSkillsDirectory, realScriptPath)) {
-    throw new Error(`Script "${script}" must not escape the skills directory through a symbolic link`);
-  }
-  if (!statSync(realScriptPath).isFile()) {
-    throw new Error(`Script "${script}" must reference a file`);
-  }
-}
-
-/**
- * Checks whether a candidate path is the root itself or one of its descendants.
- * @param rootPath Absolute root path.
- * @param candidatePath Absolute candidate path.
- * @returns Whether the candidate remains within the root.
- */
-function isPathInside(rootPath: string, candidatePath: string): boolean {
-  const child = relative(rootPath, candidatePath);
-  return child !== ".." && !child.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)
-    && !isAbsolute(child);
-}
-
-/**
- * Executes an approved command directly without invoking a shell.
- * @param executable Approved executable name.
- * @param args Validated process arguments.
+ * Executes command source through Bash.
+ * @param command Bash source to execute.
  * @param cwd Working directory for the process.
  * @returns Captured stdout and stderr.
  */
-function executeFile(
-  executable: string,
-  args: string[],
-  cwd: string,
-): Promise<BashOutput> {
+function executeBash(command: string, cwd: string): Promise<BashOutput> {
   return new Promise((resolve, reject) => {
     execFile(
-      executable,
-      args,
+      "/bin/bash",
+      ["-c", command],
       {
         cwd,
         encoding: "utf8",

@@ -307,7 +307,7 @@ tools.register(weatherTool);
 
 工具参数由 Zod 校验。未知工具、重复名称、非法 JSON 或不符合 Schema 的参数都会作为工具错误返回给模型，由模型决定如何继续。
 
-> 不传 `tools` 时，Agent 默认注册内置 `bash` 工具；显式传入 `new Tools(...)` 会替换默认工具集。内置工具使用命令白名单且不启动 shell，但仍应为 Agent 配置权限受限的工作目录和运行账号。
+> 不传 `tools` 时，Agent 默认注册内置 `bash` 工具；显式传入 `new Tools(...)` 会替换默认工具集。内置工具支持 Bash 命令及 shell 运算符，但拒绝权限、删除和磁盘管理命令；仍应为 Agent 配置权限受限的工作目录和运行账号。
 
 ## 会话与持久化
 

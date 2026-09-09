@@ -1,174 +1,78 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 import { createBashTool } from "./bash.js";
 
 describe("createBashTool", () => {
-  const directories: string[] = [];
-
-  /** Creates an isolated working directory containing one skill script. */
-  function scriptFixture(extension: string): { cwd: string; script: string } {
-    const cwd = mkdtempSync(join(tmpdir(), "walle-bash-"));
-    directories.push(cwd);
-    const directory = join(cwd, "skills", "sample", "scripts");
-    mkdirSync(directory, { recursive: true });
-    const script = `skills/sample/scripts/verify${extension}`;
-    writeFileSync(join(cwd, script), "verification script");
-    return { cwd, script };
-  }
-
-  afterEach(() => {
-    for (const directory of directories.splice(0)) {
-      rmSync(directory, { recursive: true, force: true });
-    }
-  });
-
-  it("parses quotes and escapes before invoking the configured executor", async () => {
+  it("passes a general bash command to the configured executor", async () => {
     const executor = vi.fn().mockResolvedValue({ stdout: "ok", stderr: "" });
     const bash = createBashTool({ cwd: "/workspace", executor });
 
-    await expect(bash({
-      command: String.raw`grep "hello world" path\ with\ spaces`,
-    })).resolves.toEqual({ stdout: "ok", stderr: "" });
-    expect(executor).toHaveBeenCalledWith(
-      "grep",
-      ["hello world", "path with spaces"],
-      "/workspace",
-    );
+    await expect(bash({ command: "git status --short | head -1" }))
+      .resolves.toEqual({ stdout: "ok", stderr: "" });
+    expect(executor).toHaveBeenCalledWith("git status --short | head -1", "/workspace");
     expect(bash.name).toBe("bash");
+    expect(bash.description).toContain("sudo");
+    expect(bash.parameters.toJSONSchema()).toBeDefined();
   });
 
   it.each([
     [{}, "non-empty string"],
     [{ command: 1 }, "non-empty string"],
     [{ command: " " }, "non-empty string"],
-    [{ command: "git status" }, "not allowed"],
     [{ command: "" }, "non-empty string"],
-  ])("rejects invalid command input %#", async (parameters, message) => {
+  ])("rejects invalid command input %#", (parameters, message) => {
     const bash = createBashTool({ executor: vi.fn() });
-    if (parameters.command === "git status") {
-      await expect(bash(bash.parameters.parse(parameters))).rejects.toThrow(message);
-    } else {
-      expect(() => bash.parameters.parse(parameters)).toThrow(message);
-    }
+
+    expect(() => bash.parameters.parse(parameters)).toThrow(message);
   });
 
   it.each([
-    ["ls | wc", "Shell operator"],
-    ["ls \\", "unfinished"],
-    ["grep 'text", "unfinished"],
-    ["find . -delete", "Mutating find"],
-    ["find . -exec pwd", "Mutating find"],
-    ["rg --pre command pattern", "Process-spawning"],
-    ["rg --pre=command pattern", "Process-spawning"],
-  ])("rejects unsafe command: %s", async (command, message) => {
+    ["sudo apt update", "sudo"],
+    ["/usr/bin/chmod 777 file", "chmod"],
+    ["echo ok && rm file", "rm"],
+    ["rmdir empty", "rmdir"],
+    ["mount /dev/disk /mnt", "mount"],
+    ["unmount /mnt", "unmount"],
+    ["fdisk /dev/disk", "fdisk"],
+    ["su root", "su"],
+    ["chown user file", "chown"],
+  ])("rejects forbidden command: %s", async (command, executable) => {
     await expect(createBashTool({ executor: vi.fn() })({ command }))
-      .rejects.toThrow(message);
+      .rejects.toThrow(`Command "${executable}" is not allowed`);
   });
 
-  it("allows literal shell characters inside single quotes", async () => {
+  it.each(["echo 'unfinished", "echo unfinished\\"])(
+    "rejects malformed command: %s",
+    async (command) => {
+      await expect(createBashTool({ executor: vi.fn() })({ command }))
+        .rejects.toThrow("unfinished");
+    },
+  );
+
+  it("allows the documented read-only disk commands", async () => {
+    const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
+    const bash = createBashTool({ executor });
+
+    await bash({ command: "du -sh .; df -h" });
+
+    expect(executor).toHaveBeenCalledWith("du -sh .; df -h", process.cwd());
+  });
+
+  it("accepts escaped characters in command words", async () => {
     const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
 
-    await createBashTool({ executor })({ command: "grep '$value' package.json" });
+    await createBashTool({ executor })({ command: String.raw`printf escaped\ value` });
 
-    expect(executor).toHaveBeenCalledWith(
-      "grep",
-      ["$value", "package.json"],
-      process.cwd(),
-    );
+    expect(executor).toHaveBeenCalledWith(String.raw`printf escaped\ value`, process.cwd());
   });
 
-  it.each([
-    ["echo generated content", "echo", ["generated", "content"]],
-    ["sed -i s/old/new/g file.txt", "sed", ["-i", "s/old/new/g", "file.txt"]],
-    ["touch created.txt", "touch", ["created.txt"]],
-  ])("allows selected content command: %s", async (command, executable, args) => {
-    const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
-    const bash = createBashTool({ cwd: "/workspace", executor });
+  it("executes shell operators with the default executor", async () => {
+    const output = await createBashTool()({ command: "printf first | tr a-z A-Z" });
 
-    await bash({ command });
-
-    expect(executor).toHaveBeenCalledWith(executable, args, "/workspace");
-    expect(bash.description).toContain(executable);
-  });
-
-  it.each([
-    ["mkdir -p archive", "mkdir", ["-p", "archive"]],
-    ["mv draft.txt archive/final.txt", "mv", ["draft.txt", "archive/final.txt"]],
-  ])("allows selected directory command: %s", async (command, executable, args) => {
-    const executor = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
-    const bash = createBashTool({ cwd: "/workspace", executor });
-
-    await bash({ command });
-
-    expect(executor).toHaveBeenCalledWith(executable, args, "/workspace");
-    expect(bash.description).toContain(executable);
-  });
-
-  it.each([
-    ["sh", ".sh"],
-    ["bash", ".sh"],
-    ["python", ".py"],
-    ["python3", ".py"],
-    ["node", ".js"],
-    ["node", ".mjs"],
-    ["node", ".cjs"],
-  ])("allows %s to execute matching skill scripts", async (executable, extension) => {
-    const { cwd, script } = scriptFixture(extension);
-    const executor = vi.fn().mockResolvedValue({ stdout: "executed", stderr: "" });
-    const bash = createBashTool({ cwd, executor });
-
-    await expect(bash({ command: `${executable} ${script} argument` }))
-      .resolves.toEqual({ stdout: "executed", stderr: "" });
-    expect(executor).toHaveBeenCalledWith(executable, [script, "argument"], cwd);
-    expect(bash.description).toContain(executable);
-  });
-
-  it.each([
-    ["node -e inline-code", "must execute a script"],
-    ["python3", "must execute a script"],
-    ["node skills/sample/scripts/verify.py", "cannot execute script type"],
-    ["node ../outside.js", "must be located under"],
-    ["node skills/sample/scripts/missing.js", "must reference an existing file"],
-  ])("rejects unsafe skill script command: %s", async (command, message) => {
-    const { cwd } = scriptFixture(".js");
-
-    await expect(createBashTool({ cwd, executor: vi.fn() })({ command }))
-      .rejects.toThrow(message);
-  });
-
-  it("rejects skill scripts that escape through symbolic links", async () => {
-    const { cwd } = scriptFixture(".js");
-    const outside = join(cwd, "outside.js");
-    writeFileSync(outside, "outside");
-    symlinkSync(outside, join(cwd, "skills", "sample", "scripts", "linked.js"));
-
-    await expect(createBashTool({ cwd, executor: vi.fn() })({
-      command: "node skills/sample/scripts/linked.js",
-    })).rejects.toThrow("must not escape");
-  });
-
-  it("rejects directories whose names look like skill scripts", async () => {
-    const { cwd } = scriptFixture(".js");
-    mkdirSync(join(cwd, "skills", "sample", "scripts", "directory.js"));
-
-    await expect(createBashTool({ cwd, executor: vi.fn() })({
-      command: "node skills/sample/scripts/directory.js",
-    })).rejects.toThrow("must reference a file");
-  });
-
-  it("executes a real read-only command with the default executor", async () => {
-    const output = await createBashTool()({ command: "pwd" });
-
-    expect(output.stdout.trim()).toBe(process.cwd());
-    expect(output.stderr).toBe("");
+    expect(output).toEqual({ stdout: "FIRST", stderr: "" });
   });
 
   it("reports failures from the default executor", async () => {
-    await expect(createBashTool()({
-      command: "ls definitely-not-a-real-walle-path",
-    })).rejects.toThrow("Command failed:");
+    await expect(createBashTool()({ command: "ls definitely-not-a-real-walle-path" }))
+      .rejects.toThrow("Command failed:");
   });
 });
