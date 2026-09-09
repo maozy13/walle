@@ -296,6 +296,7 @@ describe("runCli", () => {
     const fetchImplementation = vi.fn();
     await runCli(["--help"], {
       cwd: temporaryDirectory(),
+      home: temporaryDirectory(),
       input: Readable.from([]),
       output: buffer.output,
       fetch: fetchImplementation,
@@ -316,6 +317,7 @@ describe("runCli", () => {
       "--log",
     ], {
       cwd,
+      home: cwd,
       input: Readable.from(["/exit\n"]),
       output: buffer.output,
       fetch: vi.fn() as unknown as typeof fetch,
@@ -343,6 +345,7 @@ describe("runCli", () => {
       "--log",
     ], {
       cwd,
+      home: cwd,
       input: Readable.from(["\nhello\n/exit\n"]),
       output: buffer.output,
       fetch: fetchImplementation,
@@ -372,6 +375,7 @@ describe("runCli", () => {
       "--api-key", "key",
     ], {
       cwd,
+      home: cwd,
       input: Readable.from(["question\n/exit\n"]),
       output: buffer.output,
       fetch: modelFetch(reasoningLifecycle("分析", "答案")),
@@ -396,6 +400,7 @@ describe("runCli", () => {
       "--api-key", "key",
     ], {
       cwd,
+      home: cwd,
       input: Readable.from(["question\n/quit\n"]),
       output: buffer.output,
       fetch: fetchImplementation as unknown as typeof fetch,
@@ -446,6 +451,7 @@ describe("runCli", () => {
 
     await runCli([], {
       cwd,
+      home: cwd,
       input: Readable.from(["question\n/quit\n"]),
       output: buffer.output,
       fetch: modelFetch(events),
@@ -468,6 +474,7 @@ describe("runCli", () => {
       "--api-key", "key",
     ], {
       cwd,
+      home: cwd,
       input: Readable.from(["hello\n"]),
       output: buffer.output,
       fetch: fetchImplementation,

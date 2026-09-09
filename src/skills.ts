@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import type { Dirent } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
@@ -20,18 +21,23 @@ const skillMetadataSchema = z.object({
 
 const skillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Registry of skill summaries discovered from a working directory. */
+/** Registry of skill summaries discovered from prioritized skill directories. */
 export class Skills {
   public readonly skills = new Map<string, SkillDefinition>();
-  public readonly directory: string;
+  public readonly directories: readonly string[];
 
   /**
-   * Scans skill packages under a working directory.
-   * @param cwd Working directory whose skills subdirectory contains skill packages.
+   * Scans skill packages from project, project-state, and user-level directories.
+   * @param cwd Agent working directory used to resolve project skill locations.
+   * @param home User home directory used to resolve the global skill location.
    */
-  public constructor(cwd: string = process.cwd()) {
-    this.directory = resolve(cwd, "skills");
-    this.scan();
+  public constructor(cwd: string = process.cwd(), home: string = homedir()) {
+    this.directories = [
+      resolve(cwd, "skills"),
+      resolve(cwd, ".walle", "skills"),
+      resolve(home, ".walle", "skills"),
+    ];
+    for (const directory of this.directories) this.scan(directory);
   }
 
   /**
@@ -95,11 +101,14 @@ ${list}`;
     });
   }
 
-  /** Scans direct child packages and validates every discovered SKILL.md file. */
-  private scan(): void {
+  /**
+   * Scans direct child packages from one skill directory.
+   * @param directory Skill directory at the current priority level.
+   */
+  private scan(directory: string): void {
     let entries: Dirent<string>[];
     try {
-      entries = readdirSync(this.directory, { withFileTypes: true, encoding: "utf8" });
+      entries = readdirSync(directory, { withFileTypes: true, encoding: "utf8" });
     } catch (error) {
       if (isMissingDirectoryError(error)) return;
       throw error;
@@ -108,7 +117,7 @@ ${list}`;
     for (const entry of entries
       .filter((candidate) => candidate.isDirectory())
       .sort((left, right) => left.name.localeCompare(right.name))) {
-      const path = join(this.directory, entry.name, "SKILL.md");
+      const path = join(directory, entry.name, "SKILL.md");
       let source: string;
       try {
         source = readFileSync(path, "utf8");
@@ -127,7 +136,9 @@ ${list}`;
           `Skill name "${metadata.name}" in ${path} must match directory name "${entry.name}"`,
         );
       }
-      this.skills.set(metadata.name, { metadata, path });
+      if (!this.skills.has(metadata.name)) {
+        this.skills.set(metadata.name, { metadata, path });
+      }
     }
   }
 }

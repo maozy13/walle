@@ -35,7 +35,7 @@ describe("Skills", () => {
   });
 
   it("treats an absent skill directory as an empty registry", async () => {
-    const skills = new Skills(temporaryDirectory());
+    const skills = new Skills(temporaryDirectory(), temporaryDirectory());
 
     expect(skills.skills.size).toBe(0);
     expect(skills.instructions()).toBe("");
@@ -54,7 +54,7 @@ describe("Skills", () => {
     mkdirSync(join(cwd, "skills", "no-description"));
     writeFileSync(join(cwd, "skills", "README.md"), "ignored");
 
-    const skills = new Skills(cwd);
+    const skills = new Skills(cwd, temporaryDirectory());
     const instructions = skills.instructions();
 
     expect([...skills.skills.keys()]).toEqual(["first", "second-skill"]);
@@ -78,6 +78,34 @@ describe("Skills", () => {
     )).resolves.toBe(secondSource);
   });
 
+  it("merges all skill locations while preserving source priority", () => {
+    const cwd = temporaryDirectory();
+    const home = temporaryDirectory();
+    const localShared = "---\nname: shared\ndescription: cwd version\n---\nlocal";
+    const stateShared = "---\nname: shared\ndescription: state version\n---\nstate";
+    const globalShared = "---\nname: shared\ndescription: global version\n---\nglobal";
+    createSkill(cwd, "shared", localShared);
+    createSkill(join(cwd, ".walle"), "shared", stateShared);
+    createSkill(join(home, ".walle"), "shared", globalShared);
+    createSkill(join(cwd, ".walle"), "state-only", "---\nname: state-only\ndescription: state only\n---\n");
+    createSkill(join(home, ".walle"), "global-only", "---\nname: global-only\ndescription: global only\n---\n");
+
+    const skills = new Skills(cwd, home);
+
+    expect(skills.directories).toEqual([
+      join(cwd, "skills"),
+      join(cwd, ".walle", "skills"),
+      join(home, ".walle", "skills"),
+    ]);
+    expect([...skills.skills.keys()]).toEqual(["shared", "state-only", "global-only"]);
+    expect(skills.skills.get("shared")?.metadata.description).toBe("cwd version");
+    expect(skills.read("shared")).toBe(localShared);
+    expect(skills.instructions()).toContain("description: state only");
+    expect(skills.instructions()).toContain("description: global only");
+    expect(skills.instructions()).not.toContain("state version");
+    expect(skills.instructions()).not.toContain("global version");
+  });
+
   it.each([
     ["missing front matter", "plain text", "must start with YAML front matter"],
     ["invalid YAML", "---\nname: [broken\n---\n", "contains invalid YAML"],
@@ -88,20 +116,20 @@ describe("Skills", () => {
     const cwd = temporaryDirectory();
     createSkill(cwd, "sample", source);
 
-    expect(() => new Skills(cwd)).toThrow(message);
+    expect(() => new Skills(cwd, temporaryDirectory())).toThrow(message);
   });
 
   it("does not hide skill-directory filesystem failures", () => {
     const cwd = temporaryDirectory();
     writeFileSync(join(cwd, "skills"), "not a directory");
 
-    expect(() => new Skills(cwd)).toThrow();
+    expect(() => new Skills(cwd, temporaryDirectory())).toThrow();
   });
 
   it("does not hide SKILL.md filesystem failures", () => {
     const cwd = temporaryDirectory();
     mkdirSync(join(cwd, "skills", "sample", "SKILL.md"), { recursive: true });
 
-    expect(() => new Skills(cwd)).toThrow();
+    expect(() => new Skills(cwd, temporaryDirectory())).toThrow();
   });
 });

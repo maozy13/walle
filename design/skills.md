@@ -26,13 +26,17 @@ front matter 元数据是以一对分割线 “---“ 包围的 YAML 结构。�
 
 - `name` 属性必须和技能包目录的名称一致，且只支持小写字母、数字、连字符“-“
 
-## 技能包目录
-
-技能包存放在 `{cwd}/skills` 目录下。
-
 ## 扫描技能
 
-Agent 启动时，扫描技能包目录下所有的 `SKILL.md` 文件，从每个 SKILL.md 的 front matter 提取 `name` 和 `description` 属性，然后注入到上下文模板中：
+技能包存放在以下位置，按优先级从高到底进行读取：
+
+1. `{cwd}/skills` 目录
+2. `{cwd}/.walle/skills` 目录
+3. `~/.walle/skills` 目录
+
+Agent 启动时从以上位置增量读取技能包，但遇到同名技能包时，只保留位置优先级更高的技能包。
+
+读取技能包时，扫描技能包目录下所有的 `SKILL.md` 文件。从每个 SKILL.md 的 front matter 提取 `name` 和 `description` 属性，然后注入到上下文模板中：
 
 ```md
 

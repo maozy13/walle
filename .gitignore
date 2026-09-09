@@ -4,6 +4,6 @@ coverage/
 sessions/
 logs/
 memories/
-.walle
 
+walle.json
 .DS_Store
