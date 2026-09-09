@@ -25,7 +25,7 @@ export class Conversation {
    * Creates a conversation with optional existing items.
    * @param items Initial conversation items in chronological order.
    * @param id Stable conversation identity; generated when omitted.
-   * @param cwd Working directory containing the sessions directory.
+   * @param cwd Base directory containing the sessions directory.
    */
   public constructor(
     items: ConversationItemInput[] = [],

@@ -149,8 +149,8 @@ new Agent(options: AgentOptions)
 | `conversation` | `Conversation` | 否 | 自定义会话容器；默认创建空会话 |
 | `tools` | `Tools` | 否 | 自定义工具集；省略时使用包含受限 `bash` 工具的默认工具集 |
 | `memory` | `Memory` | 否 | 需要注册到 Agent 的记忆系统 |
-| `cwd` | `string` | 否 | 会话、记忆、技能和默认工具的工作目录；默认为 `process.cwd()` |
-| `sessionId` | `string` | 否 | 启动时需要从 `cwd/sessions` 恢复的会话 ID |
+| `cwd` | `string` | 否 | 记忆、技能和默认工具的工作目录；默认为 `process.cwd()` |
+| `sessionId` | `string` | 否 | 启动时需要从 `cwd/.walle/sessions` 恢复的会话 ID |
 
 `conversation` 与 `sessionId` 通常二选一。若同时传入，Agent 会在提供的 Conversation 对象上加载 `sessionId` 对应的持久化内容。
 
@@ -301,11 +301,11 @@ tools.register(weatherTool);
 
 ## 会话与持久化
 
-每次查询都会将用户输入、模型输出、函数调用和工具结果写入：
+SDK 模式下，每次查询都会将用户输入、模型输出、函数调用和工具结果写入：
 
 ```text
-<cwd>/sessions/<session-id>/CONVERSATION.md
-<cwd>/sessions/<session-id>/ARCHIVES/
+<cwd>/.walle/sessions/<session-id>/CONVERSATION.md
+<cwd>/.walle/sessions/<session-id>/ARCHIVES/
 ```
 
 新 Agent 会自动生成 session ID，可以通过 `agent.conversation.id` 获取。恢复已有会话时传入同一个工作目录和 session ID：
@@ -428,7 +428,7 @@ CLI 当前使用 Responses API 转换器。输入 `/exit` 或 `/quit` 退出。
 }
 ```
 
-CLI 会优先读取运行目录中的 `walle.json`；仅当该文件不存在时，才读取 `~/.walle/walle.json`。配置文件按文件级选择，不会逐项合并。运行目录中的 `WALLE.md` 会作为默认系统指令；选中配置文件中的 `instruction` 会覆盖它，命令行参数的优先级最高。启用日志后，记录写入 `logs/<session-id>.log`。
+CLI 按顺序读取运行目录中的 `walle.json`、运行目录下的 `.walle/walle.json`、用户目录下的 `~/.walle/walle.json`。配置文件按文件级选择，不会逐项合并。会话保存在所选配置文件同目录下的 `sessions/<session-id>`；没有配置文件时保存在运行目录下。运行目录中的 `WALLE.md` 会作为默认系统指令；选中配置文件中的 `instruction` 会覆盖它，命令行参数的优先级最高。启用日志后，记录写入 `logs/<session-id>.log`。
 
 不要提交包含真实 API Key 的 `walle.json`，也应避免通过会被 shell 历史记录的命令行参数传入密钥。
 

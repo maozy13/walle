@@ -215,7 +215,13 @@ describe("resolveCliConfig", () => {
   it("selects the workspace configuration as a whole without merging the home file", () => {
     const cwd = temporaryDirectory();
     const home = temporaryDirectory();
+    mkdirSync(join(cwd, ".walle"));
     mkdirSync(join(home, ".walle"));
+    writeFileSync(join(cwd, ".walle", "walle.json"), JSON.stringify({
+      baseUrl: "https://nested.test/responses",
+      model: "nested-model",
+      apiKey: "nested-key",
+    }), "utf8");
     writeFileSync(join(home, ".walle", "walle.json"), JSON.stringify({
       baseUrl: "https://home.test/responses",
       model: "home-model",
@@ -240,6 +246,23 @@ describe("resolveCliConfig", () => {
       model: "model",
       apiKey: "key",
       instruction: "workspace instruction",
+      log: false,
+    });
+  });
+
+  it("ignores a legacy .walle file when checking the nested configuration path", () => {
+    const cwd = temporaryDirectory();
+    const home = temporaryDirectory();
+    writeFileSync(join(cwd, ".walle"), "legacy configuration", "utf8");
+
+    expect(resolveCliConfig([
+      "--base-url=https://api.test/responses",
+      "--model=model",
+      "--api-key=key",
+    ], cwd, home)).toEqual({
+      baseUrl: "https://api.test/responses",
+      model: "model",
+      apiKey: "key",
       log: false,
     });
   });
@@ -391,10 +414,10 @@ describe("runCli", () => {
 
   it("restores a configured session, handles refusals, and exits with /quit", async () => {
     const cwd = temporaryDirectory();
-    const sessionDirectory = join(cwd, "sessions", "existing");
+    const sessionDirectory = join(cwd, ".walle", "sessions", "existing");
     mkdirSync(join(sessionDirectory, "ARCHIVES"), { recursive: true });
     writeFileSync(join(sessionDirectory, "CONVERSATION.md"), "", "utf8");
-    writeFileSync(join(cwd, "walle.json"), JSON.stringify({
+    writeFileSync(join(cwd, ".walle", "walle.json"), JSON.stringify({
       baseUrl: "https://api.test/responses",
       model: "model",
       apiKey: "key",

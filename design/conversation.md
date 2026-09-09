@@ -13,6 +13,19 @@ class Conversation {
 }
 ```
 
+## 会话持久化
+
+### 会话文件夹
+
+会话文件夹以`会话 ID`命名。文件夹中包含：
+- `CONVERSATION.md`：会话项列表，以 Markdown 文件存储，使用分隔符 `---` 对 items 进行分隔。
+- `ARCHIVES/`：会话产生的归档物。
+
+### 会话路径
+
+- 通过 CLI 命令使用 Agent 时，会话文件夹存放在与读取到的 `walle.json` 同目录下的 `sessions` 文件夹中。例如：假设 `walle.json` 路径为 `~/.walle/walle.json`，则会话文件夹所在路径为：`~/.walle/sessions/{session_id}`。
+- 通过 SDK 使用 Agent 时，会话文件夹所在路径为：`{cwd}/.walle/sessions/{session_id}`。
+
 ## 属性
 
 | 属性 | 类型 | 说明 |
@@ -27,11 +40,7 @@ class Conversation {
 
 ### `.append(items: Array<ConversationItem>)`
 
-向追加对应类型的 Conversation Item。返回追加后的完整 conversation。
-
-每一段会话都保存在以`会话 ID`命名的当前工作目录下，路径为：`{cwd}/sessions/{session_id}`。文件夹中包含：
-- `CONVERSATION.md`：会话项列表，以 Markdown 文件存储，使用分隔符 `---` 对 items 进行分隔。
-- `ARCHIVES/`：会话产生的归档物。
+追加对应类型的 Conversation Item 并持久化到会话文件，返回追加后的完整 conversation。
 
 示例：
 

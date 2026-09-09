@@ -17,7 +17,8 @@ CLI 提供基于命令行的 Agent 应用。
 
 Agent 启动时会从以下位置按优先级从高到低读取配置文件：
 
-- 当前工作目录下的 `walle.json`
+- `{cwd}/walle.json`
+- `{cwd}/.walle/walle.json`
 - `~/.walle/walle.json`
 
 注意：配置文件以文件级进行读取，**不支持**配置项的覆盖。

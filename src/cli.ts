@@ -1,10 +1,11 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { Agent } from "./agent.js";
+import { Conversation } from "./conversation.js";
 import type { AgentEvent } from "./typings/agent.js";
 import type {
   AgentCliConfig,
@@ -55,6 +56,22 @@ const resolvedConfigSchema = configSchema.extend({
 interface ParsedArguments extends AgentCliConfig {
   /** Whether the caller requested usage text instead of a REPL. */
   help: boolean;
+}
+
+/** Validated CLI values together with the directory selected for session persistence. */
+interface ResolvedCliState {
+  /** Fully validated values used to start the CLI. */
+  config: ResolvedAgentCliConfig;
+  /** Directory containing the selected configuration file, or the working directory if absent. */
+  configDirectory: string;
+}
+
+/** Persisted values and the directory from which they were loaded. */
+interface PersistedCliConfig {
+  /** Validated persisted configuration values. */
+  config: AgentCliConfig;
+  /** Directory containing the selected configuration file. */
+  directory: string;
 }
 
 /** One JSON record stored in a session log. */
@@ -269,9 +286,9 @@ function parseCliArguments(args: string[]): ParsedArguments {
 /**
  * Loads and validates the optional JSON configuration file.
  * @param paths Configuration paths in descending priority order.
- * @returns Validated persisted configuration, or an empty object when absent.
+ * @returns The first validated configuration and its directory, or undefined when absent.
  */
-function readConfig(paths: string[]): AgentCliConfig {
+function readConfig(paths: string[]): PersistedCliConfig | undefined {
   for (const path of paths) {
     const source = readOptionalFile(path);
     if (source === undefined) continue;
@@ -285,9 +302,9 @@ function readConfig(paths: string[]): AgentCliConfig {
     if (!result.success) {
       throw new Error(`Invalid configuration file ${path}: ${z.prettifyError(result.error)}`);
     }
-    return result.data;
+    return { config: result.data, directory: dirname(path) };
   }
-  return {};
+  return undefined;
 }
 
 /**
@@ -299,7 +316,9 @@ function readOptionalFile(path: string): string | undefined {
   try {
     return readFileSync(path, "utf8");
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return undefined;
+    if (isNodeError(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+      return undefined;
+    }
     throw error;
   }
 }
@@ -325,22 +344,41 @@ export function resolveCliConfig(
   cwd: string = process.cwd(),
   home: string = homedir(),
 ): ResolvedAgentCliConfig | undefined {
+  return resolveCliState(args, cwd, home)?.config;
+}
+
+/**
+ * Resolves CLI values and the configuration-relative persistence directory.
+ * @param args Arguments excluding executable and script paths.
+ * @param cwd Working directory containing CLI configuration files.
+ * @param home Home directory containing the fallback `.walle/walle.json` file.
+ * @returns Validated runtime state, or undefined when help was requested.
+ */
+function resolveCliState(
+  args: string[],
+  cwd: string,
+  home: string,
+): ResolvedCliState | undefined {
   const cli = parseCliArguments(args);
   if (cli.help) return undefined;
-  const file = readConfig([
+  const persisted = readConfig([
     resolve(cwd, CONFIG_FILE),
+    resolve(cwd, USER_CONFIG_DIRECTORY, CONFIG_FILE),
     resolve(home, USER_CONFIG_DIRECTORY, CONFIG_FILE),
   ]);
   const defaultInstruction = readOptionalFile(resolve(cwd, INSTRUCTION_FILE));
   const merged = {
     ...(defaultInstruction === undefined ? {} : { instruction: defaultInstruction }),
-    ...file,
+    ...persisted?.config,
     ...withoutHelp(cli),
-    log: cli.log ?? file.log ?? false,
+    log: cli.log ?? persisted?.config.log ?? false,
   };
   const result = resolvedConfigSchema.safeParse(merged);
   if (!result.success) throw new Error(`Invalid CLI configuration: ${z.prettifyError(result.error)}`);
-  return result.data;
+  return {
+    config: result.data,
+    configDirectory: persisted?.directory ?? resolve(cwd),
+  };
 }
 
 /**
@@ -478,11 +516,12 @@ export async function runCli(
     fetch,
   },
 ): Promise<void> {
-  const config = resolveCliConfig(args, runtime.cwd, runtime.home ?? homedir());
-  if (config === undefined) {
+  const state = resolveCliState(args, runtime.cwd, runtime.home ?? homedir());
+  if (state === undefined) {
     runtime.output.write(HELP);
     return;
   }
+  const { config } = state;
   const llm = new Connector(
     config.baseUrl,
     config.apiKey,
@@ -492,6 +531,7 @@ export async function runCli(
   const agent = new Agent({
     llm,
     cwd: runtime.cwd,
+    conversation: new Conversation([], config.session, state.configDirectory),
     ...(config.instruction === undefined ? {} : { instructions: config.instruction }),
     ...(config.session === undefined ? {} : { sessionId: config.session }),
   });

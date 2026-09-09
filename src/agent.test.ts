@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -212,7 +212,7 @@ describe("Agent", () => {
   });
 
   it("loads a requested session when constructed", async () => {
-    new Conversation([], "existing", testCwd).append([
+    new Conversation([], "existing", join(testCwd, ".walle")).append([
       { type: "text", role: "user", text: "historical" },
     ]);
     const call = vi.fn(() => stream(response([])));
@@ -226,6 +226,14 @@ describe("Agent", () => {
     await consume(agent.query("model", "current"));
 
     expect(agent.conversation.id).toBe("existing");
+    expect(agent.conversation.items).toHaveLength(2);
+    expect(existsSync(join(
+      testCwd,
+      ".walle",
+      "sessions",
+      "existing",
+      "CONVERSATION.md",
+    ))).toBe(true);
     expect(call.mock.calls[0]?.[1]).toEqual([
       { type: "message", role: "user", content: [{ type: "input_text", text: "historical" }] },
       { type: "message", role: "user", content: [{ type: "input_text", text: "current" }] },

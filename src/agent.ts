@@ -5,6 +5,7 @@ import type {
   ResponseEvent,
   ResponseFunctionCall,
 } from "@maozy13/neuralink";
+import { join } from "node:path";
 import {
   Conversation,
   fromModelOutput,
@@ -41,7 +42,7 @@ export class Agent {
     this.instructions = options.instructions ?? "";
     this.llm = options.llm;
     this.conversation = options.conversation
-      ?? new Conversation([], options.sessionId, this.cwd);
+      ?? new Conversation([], options.sessionId, join(this.cwd, ".walle"));
     if (options.sessionId !== undefined) this.conversation.read(options.sessionId);
     this.tools = options.tools
       ?? new Tools([createBashTool({ cwd: options.cwd })]);
@@ -109,7 +110,7 @@ export class Agent {
     const agent = new Agent({
       llm: this.llm,
       instructions: memory.updateInstructions(),
-      conversation: new Conversation(taskItems, undefined, this.cwd),
+      conversation: new Conversation(taskItems, undefined, join(this.cwd, ".walle")),
       tools: new Tools([memory.updateTool()]),
       cwd: this.cwd,
     });
