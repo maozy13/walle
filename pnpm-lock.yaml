@@ -9,11 +9,8 @@ importers:
   .:
     dependencies:
       '@maozy13/neuralink':
-        specifier: ^0.1.0
-        version: 0.1.0
-      neuralink^0.1.5:
-        specifier: link:@maozy13/neuralink^0.1.5
-        version: link:@maozy13/neuralink^0.1.5
+        specifier: ^0.1.1
+        version: 0.1.1
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -238,8 +235,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@maozy13/neuralink@0.1.0':
-    resolution: {integrity: sha512-0E5Xw5As2ELmL8wtcipwVueXroUX0oEi4uRZx/edD/YibhdakurI+KayZWyGH2VzO53zJxJxpMbpptI1f4c3gw==}
+  '@maozy13/neuralink@0.1.1':
+    resolution: {integrity: sha512-rAdVssvVbR6EFDCJoSDR9T2MsuHeFHjM9G0cI8lzoz/c/ca6ZuNdYTx6AJhK7IR/urQoS+LOoRXXg/k/wxVZFg==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -973,7 +970,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@maozy13/neuralink@0.1.0': {}
+  '@maozy13/neuralink@0.1.1': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

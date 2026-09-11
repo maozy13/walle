@@ -36,8 +36,7 @@
     "vitest": "3.2.7"
   },
   "dependencies": {
-    "@maozy13/neuralink": "^0.1.0",
-    "neuralink^0.1.5": "link:@maozy13/neuralink^0.1.5",
+    "@maozy13/neuralink": "^0.1.1",
     "yaml": "^2.9.0",
     "zod": "^4.5.4"
   }
