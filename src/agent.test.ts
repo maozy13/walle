@@ -11,6 +11,7 @@ import {
   type AgentOptions,
   type Response,
   type ResponseEvent,
+  type ResponseCustomToolCall,
   type ResponseFunctionCall,
   type FuncTool,
   type MemoryAdapter,
@@ -89,6 +90,27 @@ function functionCall(
     call_id: callId,
     name,
     arguments: argumentsText,
+  };
+}
+
+/**
+ * Creates a native NeuralLink custom tool call.
+ * @param callId Stable call identifier.
+ * @param name Selected custom tool name.
+ * @param input Free-form custom tool input.
+ * @returns Normalized custom tool call.
+ */
+function customToolCall(
+  callId: string,
+  name: string,
+  input = "",
+): ResponseCustomToolCall {
+  return {
+    id: `item-${callId}`,
+    type: "custom_tool_call",
+    call_id: callId,
+    name,
+    input,
   };
 }
 
@@ -527,6 +549,7 @@ describe("Agent", () => {
 
   it("maps refusal, reasoning, function-call, failed, and incomplete events", async () => {
     const added = functionCall("call", "missing", "");
+    const customAdded = customToolCall("custom-call", "shell");
     const failed = response([], "failed", "failed-id");
     const incomplete = response([], "incomplete");
     const call = vi.fn()
@@ -537,6 +560,8 @@ describe("Agent", () => {
         { type: "response.reasoning_summary_text.delta", index: 0, delta: "考" },
         { type: "response.function_call.added", function_call: added },
         { type: "response.function_call_arguments.delta", index: 0, delta: "{}" },
+        { type: "response.custom_tool_call.added", custom_tool_call: customAdded },
+        { type: "response.custom_tool_call_input.delta", index: 0, delta: "pwd" },
       ]))
       .mockImplementationOnce(() => lifecycle(incomplete));
     const agent = createAgent({ llm: { call }, tools: new Tools() });
@@ -553,6 +578,9 @@ describe("Agent", () => {
     ]));
     expect(first.events[6]?.response.output).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "function_call", arguments: "{}" }),
+    ]));
+    expect(first.events[8]?.response.output).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "custom_tool_call", input: "pwd" }),
     ]));
     expect(second.events.at(-1)?.type).toBe("agent.response.incomplete");
   });
@@ -575,6 +603,10 @@ describe("Agent", () => {
       { type: "response.created", response: response([], "in_progress") },
       { type: "response.function_call_arguments.delta", index: 0, delta: "{}" },
     ], "Unknown function call index 0"],
+    [[
+      { type: "response.created", response: response([], "in_progress") },
+      { type: "response.custom_tool_call_input.delta", index: 0, delta: "pwd" },
+    ], "Unknown custom tool call index 0"],
   ] as const)("rejects invalid event sequences %#", async (events, message) => {
     const call = vi.fn(() => stream(response([]), [...events] as ResponseEvent[]));
 

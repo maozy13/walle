@@ -227,3 +227,34 @@ end
 | role | "tool" | 会话项生成者，固定为 "tool" |
 | call_id | string | 关联的函数调用 ID |
 | output | string | 函数执行的结果 |
+
+### CustomToolCall
+
+自定义工具执行
+
+**属性：**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
+| type | "custom_tool_call" | 会话项类型，固定为 "custom_tool_call" |
+| role | "assistant" | 会话项生成者，固定为 "assistant" |
+| call_id | string | 可执行代码的执行 ID |
+| name | string | 执行代码的工具名称 |
+| input | string | 模型生成的可执行代码 |
+
+### CustomToolCallOutput
+
+函数输出。
+
+**属性：**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| id | string | 会话项 ID，本地生成的 UUID |
+| created_at | number | 会话项创建时间戳，取值自本地环境时间 |
+| type | "custom_tool_call_output" | 会话项类型，固定为 "custom_tool_call_output" |
+| role | "tool" | 会话项生成者，固定为 "tool" |
+| call_id | string | 模型生成的可执行代码的执行 ID，用于关联代码执行和代码执行结果 |
+| output | string | 代码的执行结果 |

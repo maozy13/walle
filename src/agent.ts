@@ -3,6 +3,7 @@ import type {
   Optional,
   Response,
   ResponseEvent,
+  ResponseCustomToolCall,
   ResponseFunctionCall,
 } from "@maozy13/neuralink";
 import { join } from "node:path";
@@ -239,6 +240,17 @@ function applyChange(
       .filter((item): item is ResponseFunctionCall => item.type === "function_call")[event.index];
     if (call === undefined) throw new Error(`Unknown function call index ${event.index}`);
     call.arguments += event.delta;
+    return;
+  }
+  if (event.type === "response.custom_tool_call.added") {
+    response.output.push(structuredClone(event.custom_tool_call));
+    return;
+  }
+  if (event.type === "response.custom_tool_call_input.delta") {
+    const call = response.output
+      .filter((item): item is ResponseCustomToolCall => item.type === "custom_tool_call")[event.index];
+    if (call === undefined) throw new Error(`Unknown custom tool call index ${event.index}`);
+    call.input += event.delta;
     return;
   }
   if (event.type === "response.reasoning_summary_text.delta") {

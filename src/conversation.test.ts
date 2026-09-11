@@ -61,6 +61,8 @@ describe("Conversation", () => {
       { type: "reasoning", role: "assistant", content: "private", summary: "public" },
       { type: "function_call", role: "assistant", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", role: "tool", call_id: "call", output: "ok" },
+      { type: "custom_tool_call", role: "assistant", call_id: "custom", name: "shell", input: "pwd" },
+      { type: "custom_tool_call_output", role: "tool", call_id: "custom", output: "/workspace" },
     ]);
 
     expect(input).toEqual([
@@ -69,9 +71,11 @@ describe("Conversation", () => {
       { type: "message", role: "assistant", content: [{ type: "input_file", file_url: "https://file" }] },
       { type: "function_call", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", call_id: "call", output: "ok" },
+      { type: "custom_tool_call", call_id: "custom", name: "shell", input: "pwd" },
+      { type: "custom_tool_call_output", call_id: "custom", output: "/workspace" },
     ]);
     input.length = 0;
-    expect(conversation.context()).toHaveLength(5);
+    expect(conversation.context()).toHaveLength(7);
     expect(conversation.id).toBe("conversation-id");
   });
 
@@ -83,6 +87,8 @@ describe("Conversation", () => {
       { type: "reasoning", role: "assistant", content: "details", summary: "summary" },
       { type: "function_call", role: "assistant", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", role: "tool", call_id: "call", output: "ok" },
+      { type: "custom_tool_call", role: "assistant", call_id: "custom", name: "shell", input: "pwd" },
+      { type: "custom_tool_call_output", role: "tool", call_id: "custom", output: "/workspace" },
     ];
     const conversation = new Conversation([], "saved-session", cwd);
 
@@ -204,6 +210,8 @@ describe("Conversation", () => {
       { type: "message", role: "system", content: [{ type: "input_file", file_url: "file" }] },
       { type: "function_call", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", call_id: "call", output: "ok" },
+      { type: "custom_tool_call", call_id: "custom", name: "shell", input: "pwd" },
+      { type: "custom_tool_call_output", call_id: "custom", output: "/workspace" },
     ]);
     expect(withoutMetadata(structured)).toEqual([
       { type: "text", role: "assistant", text: "answer" },
@@ -211,6 +219,8 @@ describe("Conversation", () => {
       { type: "file", role: "user", file: "file" },
       { type: "function_call", role: "assistant", call_id: "call", name: "tool", arguments: "{}" },
       { type: "function_call_output", role: "tool", call_id: "call", output: "ok" },
+      { type: "custom_tool_call", role: "assistant", call_id: "custom", name: "shell", input: "pwd" },
+      { type: "custom_tool_call_output", role: "tool", call_id: "custom", output: "/workspace" },
     ]);
     expectMetadata([...plain, ...structured], earliest, Date.now());
   });
@@ -225,6 +235,7 @@ describe("Conversation", () => {
         summary: { type: "summary_text", text: "summary" },
       },
       { id: "item", type: "function_call", call_id: "call", name: "tool", arguments: "{}" },
+      { id: "custom-item", type: "custom_tool_call", call_id: "custom", name: "shell", input: "pwd" },
     ];
 
     const earliest = Date.now();
@@ -234,6 +245,7 @@ describe("Conversation", () => {
       { type: "text", role: "assistant", text: "no" },
       { type: "reasoning", role: "assistant", content: "details", summary: "summary" },
       { type: "function_call", role: "assistant", call_id: "call", name: "tool", arguments: "{}" },
+      { type: "custom_tool_call", role: "assistant", call_id: "custom", name: "shell", input: "pwd" },
     ]);
     expectMetadata(normalized, earliest, Date.now());
   });

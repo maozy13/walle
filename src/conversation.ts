@@ -169,6 +169,15 @@ function isConversationItemShape(value: unknown): value is ConversationItemInput
       return item.role === "tool"
         && typeof item.call_id === "string"
         && typeof item.output === "string";
+    case "custom_tool_call":
+      return item.role === "assistant"
+        && typeof item.call_id === "string"
+        && typeof item.name === "string"
+        && typeof item.input === "string";
+    case "custom_tool_call_output":
+      return item.role === "tool"
+        && typeof item.call_id === "string"
+        && typeof item.output === "string";
     default:
       return false;
   }
@@ -248,6 +257,15 @@ export function fromModelOutput(output: ResponseOutputItem[]): ConversationItem[
         arguments: item.arguments,
       });
     }
+    if (item.type === "custom_tool_call") {
+      return withMetadata({
+        type: "custom_tool_call",
+        role: "assistant",
+        call_id: item.call_id,
+        name: item.name,
+        input: item.input,
+      });
+    }
     if (item.type === "reasoning") {
       return withMetadata({
         type: "reasoning",
@@ -276,6 +294,12 @@ function fromInputItem(item: InputItem): ConversationItem[] {
     return [withMetadata({ ...item, role: "assistant" })];
   }
   if (item.type === "function_call_output") {
+    return [withMetadata({ ...item, role: "tool" })];
+  }
+  if (item.type === "custom_tool_call") {
+    return [withMetadata({ ...item, role: "assistant" })];
+  }
+  if (item.type === "custom_tool_call_output") {
     return [withMetadata({ ...item, role: "tool" })];
   }
   const role = item.role === "assistant" ? "assistant" : "user";
@@ -327,6 +351,19 @@ function toInputItem(item: ConversationItem): InputItem[] {
     case "function_call_output":
       return [{
         type: "function_call_output",
+        call_id: item.call_id,
+        output: item.output,
+      }];
+    case "custom_tool_call":
+      return [{
+        type: "custom_tool_call",
+        call_id: item.call_id,
+        name: item.name,
+        input: item.input,
+      }];
+    case "custom_tool_call_output":
+      return [{
+        type: "custom_tool_call_output",
         call_id: item.call_id,
         output: item.output,
       }];
