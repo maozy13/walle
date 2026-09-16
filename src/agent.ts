@@ -31,7 +31,6 @@ export class Agent {
   public readonly conversation: Conversation;
   public readonly tools: Tools;
   public readonly memory?: Memory;
-  private readonly skillInstructions: string;
   private readonly cwd: string;
   private readonly home?: string;
 
@@ -52,8 +51,7 @@ export class Agent {
     this.memory = options.memory;
     if (this.memory !== undefined) this.tools.register(this.memory.retrieveTool());
     const skills = new Skills(this.cwd, this.home);
-    this.skillInstructions = skills.instructions();
-    if (skills.skills.size > 0) this.tools.register(skills.readTool());
+    if (skills.skills.size > 0) this.tools.register(skills.activationTool());
   }
 
   /**
@@ -155,7 +153,6 @@ export class Agent {
   private createModelOptions(optional: AgentQueryOptions): Optional {
     const instructions = [
       this.instructions,
-      this.skillInstructions,
       optional.instructions,
     ]
       .filter((value): value is string => value !== undefined && value !== "")

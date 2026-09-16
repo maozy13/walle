@@ -13,11 +13,11 @@ export interface SkillDefinition {
   /** Parsed YAML front matter. */
   metadata: SkillMetadata;
   /** Absolute path to the package's SKILL.md file. */
-  path: string;
+  location: string;
 }
 
-/** Arguments accepted by the built-in full-skill reader. */
-export interface ReadFullSkillArguments {
-  /** Name of the discovered skill to read. */
+/** Arguments accepted by the built-in skill activator. */
+export interface ActivateSkillArguments {
+  /** Name of the discovered skill to activate. */
   name: string;
 }

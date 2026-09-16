@@ -6,13 +6,13 @@ import { parse } from "yaml";
 import { z } from "zod";
 import type { FuncTool } from "./typings/tool.js";
 import type {
-  ReadFullSkillArguments,
+  ActivateSkillArguments,
   SkillDefinition,
   SkillMetadata,
 } from "./typings/skill.js";
 
-/** Tool name reserved for loading complete skill instructions. */
-export const READ_FULL_SKILL_TOOL_NAME = "read_full_skill";
+/** Tool name reserved for activating discovered skill instructions. */
+export const ACTIVATE_SKILL_TOOL_NAME = "activate_skill";
 
 const skillMetadataSchema = z.object({
   name: z.string().trim().min(1),
@@ -33,8 +33,8 @@ export class Skills {
    */
   public constructor(cwd: string = process.cwd(), home: string = homedir()) {
     this.directories = [
-      resolve(cwd, "skills"),
       resolve(cwd, ".walle", "skills"),
+      resolve(cwd, ".agents", "skills"),
       resolve(home, ".walle", "skills"),
       resolve(home, ".agents", "skills"),
     ];
@@ -42,62 +42,50 @@ export class Skills {
   }
 
   /**
-   * Reads the complete SKILL.md content for a discovered skill.
+   * Loads only the instruction body for a discovered skill.
    * @param name Stable skill name selected by the model.
-   * @returns Complete skill description including its front matter.
+   * @returns Skill instructions with YAML front matter removed.
    */
-  public read(name: string): string {
+  public activate(name: string): string {
     const skill = this.skills.get(name);
     if (skill === undefined) throw new Error(`Unknown skill "${name}"`);
-    return readFileSync(skill.path, "utf8");
+    return parseSkill(readFileSync(skill.location, "utf8"), skill.location).instructions;
   }
 
   /**
-   * Builds the system instructions that advertise discovered skill summaries.
-   * @returns Skill usage rules and the ordered list of available skills.
+   * Builds the catalog embedded in the skill activation tool description.
+   * @returns Ordered skill names and descriptions without filesystem locations.
    */
-  public instructions(): string {
-    if (this.skills.size === 0) return "";
+  public catalog(): string {
     const list = [...this.skills.values()]
-      .map(({ metadata }) => `- name: ${metadata.name}\n  description: ${metadata.description}`)
+      .map(({ metadata }) => [
+        `  - name: ${metadata.name}`,
+        `    description: ${metadata.description.replace(/\s+/gu, " ").trim()}`,
+      ].join("\n"))
       .join("\n");
-    return `# 使用技能
-
-## 使用规则
-
-根据技能的 \`name\` 和 \`description\` 判断当前任务是否需要使用技能，如果有合适的技能：
-
-1. 使用 \`${READ_FULL_SKILL_TOOL_NAME}()\` 工具读取完整的技能描述。
-2. 判断技能的描述是否能够满足任务需求：
-   2.1 如果能，则按照技能描述执行技能。
-3. 根据需要，你可以一次加载多个技能，也可以在技能执行过程中按需加载其他技能。
-
-## 技能列表
-
-以下是可用的技能：
-${list}`;
+    return `available_skills:${list === "" ? "" : `\n${list}`}`;
   }
 
   /**
-   * Builds the model-callable tool used to load complete skill instructions.
-   * @returns Full-skill reader backed by this registry.
+   * Builds the model-callable tool used to activate skill instructions.
+   * @returns Skill activator backed by this registry.
    */
-  public readTool(): FuncTool {
+  public activationTool(): FuncTool {
     const availableNames = [...this.skills.keys()];
     const parameters = z.object({
       name: z.string().refine(
         (name) => this.skills.has(name),
         { error: `name must be one of: ${availableNames.join(", ")}` },
-      ).describe("要读取的技能名称"),
+      ).describe("要激活的技能名称"),
     }).strict();
     const registry = this;
-    const readFullSkill = function read_full_skill(
-      values: ReadFullSkillArguments,
+    const activateSkill = function activate_skill(
+      values: ActivateSkillArguments,
     ): string {
-      return registry.read(values.name);
+      return registry.activate(values.name);
     };
-    return Object.assign(readFullSkill, {
-      description: "根据技能名称读取完整的 SKILL.md 技能说明。",
+    return Object.assign(activateSkill, {
+      description: `根据技能名称激活并返回对应的技能指令。\n\n${this.catalog()}`,
       parameters,
     });
   }
@@ -126,7 +114,7 @@ ${list}`;
         if (isMissingDirectoryError(error)) continue;
         throw error;
       }
-      const metadata = parseMetadata(source, path);
+      const metadata = parseSkill(source, path).metadata;
       if (!skillNamePattern.test(metadata.name)) {
         throw new Error(
           `Skill name "${metadata.name}" in ${path} must contain only lowercase letters, numbers, and single hyphens`,
@@ -138,19 +126,22 @@ ${list}`;
         );
       }
       if (!this.skills.has(metadata.name)) {
-        this.skills.set(metadata.name, { metadata, path });
+        this.skills.set(metadata.name, { metadata, location: resolve(path) });
       }
     }
   }
 }
 
 /**
- * Extracts and validates YAML front matter from a skill description.
+ * Extracts YAML front matter and instructions from a skill description.
  * @param source Complete SKILL.md source.
  * @param path File path included in validation errors.
- * @returns Validated skill metadata, including user-defined fields.
+ * @returns Validated skill metadata and the instruction body.
  */
-function parseMetadata(source: string, path: string): SkillMetadata {
+function parseSkill(
+  source: string,
+  path: string,
+): { metadata: SkillMetadata; instructions: string } {
   const match = /^---[\t ]*\r?\n([\s\S]*?)\r?\n---[\t ]*(?:\r?\n|$)/.exec(source);
   if (match?.[1] === undefined) {
     throw new Error(`Skill file ${path} must start with YAML front matter`);
@@ -167,7 +158,10 @@ function parseMetadata(source: string, path: string): SkillMetadata {
   if (!result.success) {
     throw new Error(`Skill file ${path} must define non-empty name and description fields`);
   }
-  return result.data;
+  return {
+    metadata: result.data,
+    instructions: source.slice(match[0].length).trim(),
+  };
 }
 
 /**

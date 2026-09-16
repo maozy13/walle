@@ -292,14 +292,14 @@ describe("Agent", () => {
     ))).toBe(true);
   });
 
-  it("advertises skill summaries and loads complete instructions through a tool call", async () => {
-    const skillDirectory = join(testCwd, "skills", "code-review");
+  it("advertises the skill catalog through activate_skill and returns only instructions", async () => {
+    const skillDirectory = join(testCwd, ".walle", "skills", "code-review");
     mkdirSync(skillDirectory, { recursive: true });
     const source = "---\nname: code-review\ndescription: 审查代码缺陷\n---\n\n# 仅按严重度报告\n";
     writeFileSync(join(skillDirectory, "SKILL.md"), source);
     const selected = functionCall(
       "skill-call",
-      "read_full_skill",
+      "activate_skill",
       '{"name":"code-review"}',
     );
     const call = vi.fn()
@@ -315,21 +315,24 @@ describe("Agent", () => {
     await consume(agent.query("model", "review", { instructions: "本轮指令" }));
 
     expect(call.mock.calls[0]?.[2].instructions).toContain("基础指令");
-    expect(call.mock.calls[0]?.[2].instructions).toContain("description: 审查代码缺陷");
+    expect(call.mock.calls[0]?.[2].instructions).not.toContain("description: 审查代码缺陷");
     expect(call.mock.calls[0]?.[2].instructions).not.toContain("仅按严重度报告");
     expect(call.mock.calls[0]?.[2].instructions).toContain("本轮指令");
     expect(call.mock.calls[0]?.[2].tools).toEqual([
-      expect.objectContaining({ name: "read_full_skill" }),
+      expect.objectContaining({
+        name: "activate_skill",
+        description: expect.stringContaining("description: 审查代码缺陷"),
+      }),
     ]);
     expect(call.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([{
       type: "function_call_output",
       call_id: "skill-call",
-      output: source,
+      output: "# 仅按严重度报告",
     }]));
   });
 
-  it("reserves the full-skill reader tool name when skills are discovered", () => {
-    const skillDirectory = join(testCwd, "skills", "sample");
+  it("reserves the skill activator tool name when skills are discovered", () => {
+    const skillDirectory = join(testCwd, ".walle", "skills", "sample");
     mkdirSync(skillDirectory, { recursive: true });
     writeFileSync(
       join(skillDirectory, "SKILL.md"),
@@ -338,9 +341,9 @@ describe("Agent", () => {
 
     expect(() => createAgent({
       llm: { call: () => stream(response()) },
-      tools: new Tools([tool("read_full_skill", vi.fn())]),
+      tools: new Tools([tool("activate_skill", vi.fn())]),
       cwd: testCwd,
-    })).toThrow('Tool "read_full_skill" is already registered');
+    })).toThrow('Tool "activate_skill" is already registered');
   });
 
   it("retrieves memory and updates adapters with only the current task", async () => {

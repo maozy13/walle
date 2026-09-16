@@ -244,12 +244,12 @@ description: 审查代码并定位可能造成运行错误的缺陷
 按照严重程度检查并报告代码缺陷。
 ```
 
-Agent 启动时只把技能的 `name` 和 `description` 注入系统指令。模型判断技能适用后，会调用内置的 `read_full_skill` 工具读取完整文件；工具结果随后进入当前会话，供下一轮模型调用遵循。没有发现技能时，不会注册该工具，也不会增加技能系统指令。
+Agent 启动时把技能的 `name` 和 `description` 构建成 catalog，并注入内置 `activate_skill` 工具的描述。模型判断技能适用后，会调用该工具；工具只返回 `SKILL.md` 的指令正文，不包含 Frontmatter。工具结果随后进入当前会话，供下一轮模型调用遵循。没有发现技能时，不会注册该工具。
 
 Agent 按以下优先级增量扫描技能目录：
 
-1. `cwd/skills`
-2. `cwd/.walle/skills`
+1. `cwd/.walle/skills`
+2. `cwd/.agents/skills`
 3. `~/.walle/skills`
 4. `~/.agents/skills`
 
