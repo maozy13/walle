@@ -559,6 +559,8 @@ describe("Agent", () => {
       .mockImplementationOnce(() => lifecycle(failed, [
         { type: "response.message_refusal.delta", index: 0, delta: "不" },
         { type: "response.message_refusal.delta", index: 0, delta: "行" },
+        { type: "response.reasoning_text.delta", index: 0, delta: "详" },
+        { type: "response.reasoning_text.delta", index: 0, delta: "情" },
         { type: "response.reasoning_summary_text.delta", index: 0, delta: "思" },
         { type: "response.reasoning_summary_text.delta", index: 0, delta: "考" },
         { type: "response.function_call.added", function_call: added },
@@ -576,13 +578,16 @@ describe("Agent", () => {
     expect(first.events[2]?.response.output).toEqual([expect.objectContaining({
       content: { type: "refusal", refusal: "不行" },
     })]);
-    expect(first.events[4]?.response.output).toEqual(expect.arrayContaining([
-      expect.objectContaining({ summary: { type: "summary_text", text: "思考" } }),
-    ]));
     expect(first.events[6]?.response.output).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "function_call", arguments: "{}" }),
+      expect.objectContaining({
+        content: { type: "reasoning_text", text: "详情" },
+        summary: { type: "summary_text", text: "思考" },
+      }),
     ]));
     expect(first.events[8]?.response.output).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "function_call", arguments: "{}" }),
+    ]));
+    expect(first.events[10]?.response.output).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "custom_tool_call", input: "pwd" }),
     ]));
     expect(second.events.at(-1)?.type).toBe("agent.response.incomplete");
@@ -597,6 +602,10 @@ describe("Agent", () => {
     [[
       { type: "response.created", response: response([], "in_progress") },
       { type: "response.message_refusal.delta", index: 1, delta: "x" },
+    ], "unknown index 1"],
+    [[
+      { type: "response.created", response: response([], "in_progress") },
+      { type: "response.reasoning_text.delta", index: 1, delta: "x" },
     ], "unknown index 1"],
     [[
       { type: "response.created", response: response([], "in_progress") },

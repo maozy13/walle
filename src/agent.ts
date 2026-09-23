@@ -250,6 +250,21 @@ function applyChange(
     call.input += event.delta;
     return;
   }
+  if (event.type === "response.reasoning_text.delta") {
+    const items = response.output.filter((item) => item.type === "reasoning");
+    const item = items[event.index];
+    if (item === undefined) {
+      requireNextIndex(event.index, items.length, event.type);
+      response.output.push({
+        type: "reasoning",
+        content: { type: "reasoning_text", text: event.delta },
+        summary: { type: "summary_text", text: "" },
+      });
+    } else {
+      item.content.text += event.delta;
+    }
+    return;
+  }
   if (event.type === "response.reasoning_summary_text.delta") {
     const items = response.output.filter((item) => item.type === "reasoning");
     const item = items[event.index];
@@ -266,18 +281,18 @@ function applyChange(
     return;
   }
 
-  const contentType = event.type === "response.message_text.delta"
-    ? "output_text"
-    : "refusal";
+  const contentType = event.type === "response.message_refusal.delta"
+    ? "refusal"
+    : "output_text";
   const items = response.output.filter(
     (item) => item.type === "message" && item.content.type === contentType,
   );
   const item = items[event.index];
   if (item === undefined) {
     requireNextIndex(event.index, items.length, event.type);
-    response.output.push(event.type === "response.message_text.delta"
-      ? { type: "message", role: "assistant", content: { type: "output_text", text: event.delta } }
-      : { type: "message", role: "assistant", content: { type: "refusal", refusal: event.delta } });
+    response.output.push(event.type === "response.message_refusal.delta"
+      ? { type: "message", role: "assistant", content: { type: "refusal", refusal: event.delta } }
+      : { type: "message", role: "assistant", content: { type: "output_text", text: event.delta } });
   } else if (item.type === "message" && item.content.type === "output_text") {
     item.content.text += event.delta;
   } else if (item.type === "message" && item.content.type === "refusal") {
