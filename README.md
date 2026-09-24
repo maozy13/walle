@@ -188,7 +188,7 @@ SDK 会自动把当前会话和工具 Schema 发送给模型、执行函数调�
 | `agent.run.failed` | Agent 任务因模型响应失败而结束 |
 | `agent.run.incomplete` | Agent 任务因模型响应不完整而结束 |
 
-一次 Agent 任务可能包含多轮模型调用，因此可能产生多组 `agent.response.created` 和工具完成事件，但只会产生一次 `agent.run.created`。应以异步生成器结束及其返回的 `Response` 作为整个任务结束的标志。
+一次 Agent 任务可能包含多轮模型调用，因此可能产生多组 `agent.response.created` 和工具完成事件，但只会产生一次 `agent.run.created`。同一任务内的每个事件都携带相同的 `run_id`，而各轮模型响应仍通过各自的 `id` 区分。应以异步生成器结束及其返回的 `Response` 作为整个任务结束的标志。
 
 如果业务既需要处理事件，又需要最终响应，可以使用以下消费方式：
 

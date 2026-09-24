@@ -86,6 +86,7 @@ Agent 开始新一轮的响应输出。当 neuralink 输出 `ResponseCreated` �
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.response.created" | 事件类型，固定为 "agent.response.created" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -98,6 +99,7 @@ Agent 开始新一轮的响应输出。当 neuralink 输出 `ResponseCreated` �
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.message.changed" | 事件类型，固定为 "agent.message.changed" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -110,6 +112,7 @@ Agent 开始新一轮的响应输出。当 neuralink 输出 `ResponseCreated` �
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.reasoning.changed" | 事件类型，固定为 "agent.reasoning.changed" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -122,6 +125,7 @@ Agent 开始新一轮的响应输出。当 neuralink 输出 `ResponseCreated` �
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.function_call.completed" | 事件类型，固定为 "agent.function_call.completed" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -134,6 +138,7 @@ Agent 开始新一轮的响应输出。当 neuralink 输出 `ResponseCreated` �
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.custom_tool_call.completed" | 事件类型，固定为 "agent.custom_tool_call.completed" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -146,6 +151,7 @@ Agent 完成任务并不再输出。当 neuralink 输出 `ResponseCompleted` 事
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.run.completed" | 事件类型，固定为 "agent.run.completed" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -158,6 +164,7 @@ Agent 完成任务并不再输出。当 neuralink 输出 `ResponseCompleted` 事
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.run.failed" | 事件类型，固定为 "agent.run.failed" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
@@ -170,5 +177,6 @@ Agent 完成任务并不再输出。当 neuralink 输出 `ResponseCompleted` 事
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.run.incomplete" | 事件类型，固定为 "agent.run.incomplete" |
+| run_id | string | 本次任务的任务 id |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |

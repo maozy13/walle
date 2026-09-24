@@ -39,6 +39,8 @@ export interface AgentRunCreated {
 
 /** Base payload shared by WallE events that contain a model response. */
 export interface AgentResponseEventBase {
+  /** Stable identifier shared by every model round in this Agent task. */
+  run_id: string;
   /** Model response identifier, or an empty string when the provider omits it. */
   id: string;
   /** Response state accumulated when the event was emitted. */

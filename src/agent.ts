@@ -67,14 +67,15 @@ export class Agent {
     input: AgentInput,
     optional: AgentQueryOptions = {},
   ): AgentQuery {
-    yield { type: "agent.run.created", run_id: randomUUID() };
+    const runId = randomUUID();
+    yield { type: "agent.run.created", run_id: runId };
     const firstTaskItem = this.conversation.items.length;
     let modelInput = this.conversation.append(fromUserInput(input));
     const modelOptions = this.createModelOptions(optional);
 
     try {
       while (true) {
-        const response = yield* this.call(model, modelInput, modelOptions);
+        const response = yield* this.call(model, modelInput, modelOptions, runId);
         this.conversation.append(fromModelOutput(response.output));
         const calls = response.output.filter(
           (item): item is ResponseFunctionCall => item.type === "function_call",
@@ -129,19 +130,21 @@ export class Agent {
    * @param model Provider model identifier.
    * @param input Complete conversation input for this round.
    * @param optional Model settings including registered tools.
+   * @param runId Stable identifier of the current Agent task.
    * @returns WallE response events and the round's final response.
    */
   private async *call(
     model: string,
     input: ReturnType<Conversation["read"]>,
     optional: Optional,
+    runId: string,
   ): AgentQuery {
     const stream = this.llm.call(model, input, optional);
     let accumulated: Response | undefined;
     while (true) {
       const next = await stream.next();
       if (next.done) return next.value;
-      const mapped = mapEvent(next.value, accumulated);
+      const mapped = mapEvent(next.value, accumulated, runId);
       accumulated = mapped.response;
       if (mapped.event !== undefined) yield mapped.event;
     }
@@ -197,15 +200,17 @@ export class Agent {
  * Maps a NeuralLink event and advances a detached response snapshot.
  * @param event Native NeuralLink event.
  * @param previous Previously accumulated response snapshot.
+ * @param runId Stable identifier of the current Agent task.
  * @returns Updated response and its optional public WallE event.
  */
 function mapEvent(
   event: ResponseEvent,
   previous: Response | undefined,
+  runId: string,
 ): { response: Response; event?: AgentEvent } {
   if (event.type === "response.created") {
     const response = cloneResponse(event.response);
-    return { response, event: createEvent("agent.response.created", response) };
+    return { response, event: createEvent("agent.response.created", response, runId) };
   }
   if (event.type === "response.completed") {
     const response = cloneResponse(event.response);
@@ -215,15 +220,15 @@ function mapEvent(
       : types.has("custom_tool_call")
         ? "agent.custom_tool_call.completed"
         : "agent.run.completed";
-    return { response, event: createEvent(type, response) };
+    return { response, event: createEvent(type, response, runId) };
   }
   if (event.type === "response.failed") {
     const response = cloneResponse(event.response);
-    return { response, event: createEvent("agent.run.failed", response) };
+    return { response, event: createEvent("agent.run.failed", response, runId) };
   }
   if (event.type === "response.incomplete") {
     const response = cloneResponse(event.response);
-    return { response, event: createEvent("agent.run.incomplete", response) };
+    return { response, event: createEvent("agent.run.incomplete", response, runId) };
   }
   if (previous === undefined) {
     throw new Error(`NeuralLink emitted ${event.type} before response.created`);
@@ -233,11 +238,11 @@ function mapEvent(
   applyChange(response, event);
   if (event.type === "response.reasoning_text.delta"
     || event.type === "response.reasoning_summary_text.delta") {
-    return { response, event: createEvent("agent.reasoning.changed", response) };
+    return { response, event: createEvent("agent.reasoning.changed", response, runId) };
   }
   if (event.type === "response.message_text.delta"
     || event.type === "response.message_refusal.delta") {
-    return { response, event: createEvent("agent.message.changed", response) };
+    return { response, event: createEvent("agent.message.changed", response, runId) };
   }
   return { response };
 }
@@ -337,13 +342,15 @@ function requireNextIndex(index: number, length: number, type: string): void {
  * Creates a WallE event around a response snapshot.
  * @param type WallE event discriminator.
  * @param response Detached response snapshot.
+ * @param runId Stable identifier of the current Agent task.
  * @returns Normalized WallE event.
  */
 function createEvent(
-  type: AgentEvent["type"],
+  type: Exclude<AgentEvent["type"], "agent.run.created">,
   response: Response,
+  runId: string,
 ): AgentEvent {
-  return { type, id: response.id ?? "", response } as AgentEvent;
+  return { type, run_id: runId, id: response.id ?? "", response } as AgentEvent;
 }
 
 /**

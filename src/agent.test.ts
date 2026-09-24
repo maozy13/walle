@@ -221,6 +221,8 @@ describe("Agent", () => {
       type: "agent.run.created",
       run_id: expect.any(String),
     });
+    const runId = result.events[0]?.run_id;
+    expect(result.events.every(({ run_id }) => run_id === runId)).toBe(true);
     expect(result.events.slice(1).every((event) => (
       "id" in event && event.id === "response-1"
     ))).toBe(true);
@@ -507,6 +509,11 @@ describe("Agent", () => {
       "agent.response.created",
       "agent.run.completed",
     ]);
+    const runId = result.events[0]?.run_id;
+    expect(result.events.every(({ run_id }) => run_id === runId)).toBe(true);
+    expect(new Set(result.events.flatMap((event) => (
+      "id" in event ? [event.id] : []
+    )))).toEqual(new Set(["response-1", "response-2", "response-3"]));
     expect(call.mock.calls[1]?.[1]).toEqual([
       expect.objectContaining({ type: "message", role: "user" }),
       ...firstCalls.map(({ id: _id, ...item }) => item),
@@ -665,6 +672,7 @@ describe("Agent", () => {
       run_id: expect.any(String),
     });
     expect(events.slice(1).every((event) => "id" in event && event.id === "")).toBe(true);
+    expect(events.every(({ run_id }) => run_id === events[0]?.run_id)).toBe(true);
   });
 
   it("creates a run before and independently of response.created", async () => {
