@@ -217,7 +217,13 @@ describe("Agent", () => {
     expect(result.events[3]).toMatchObject({ response: { output: [expect.objectContaining({
       content: { type: "output_text", text: "你好" },
     })] } });
-    expect(result.events.every(({ id }) => id === "response-1")).toBe(true);
+    expect(result.events[0]).toMatchObject({
+      type: "agent.run.created",
+      run_id: expect.any(String),
+    });
+    expect(result.events.slice(1).every((event) => (
+      "id" in event && event.id === "response-1"
+    ))).toBe(true);
     expect(result.final).toBe(final);
     expect(call).toHaveBeenCalledWith("model", [{
       type: "message",
@@ -654,6 +660,38 @@ describe("Agent", () => {
       tools: new Tools(),
     }).query("model", "run"));
 
-    expect(events.every(({ id }) => id === "")).toBe(true);
+    expect(events[0]).toMatchObject({
+      type: "agent.run.created",
+      run_id: expect.any(String),
+    });
+    expect(events.slice(1).every((event) => "id" in event && event.id === "")).toBe(true);
+  });
+
+  it("creates a run before and independently of response.created", async () => {
+    const call = vi.fn(() => stream(response([])));
+    const agent = createAgent({
+      llm: { call },
+      tools: new Tools(),
+    });
+
+    const firstQuery = agent.query("model", "one");
+    const created = await firstQuery.next();
+
+    expect(created).toEqual({ done: false, value: {
+      type: "agent.run.created",
+      run_id: expect.any(String),
+    } });
+    expect(call).not.toHaveBeenCalled();
+
+    const first = await consume(firstQuery);
+    const second = await consume(agent.query("model", "two"));
+
+    expect(first.events).toEqual([]);
+    expect(second.events).toEqual([{
+      type: "agent.run.created",
+      run_id: expect.any(String),
+    }]);
+    expect((created.value as { run_id: string }).run_id)
+      .not.toBe((second.events[0] as { run_id: string }).run_id);
   });
 });

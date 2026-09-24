@@ -68,14 +68,14 @@ AgentEvent 可能是下列事件中的一种：
 
 #### AgentRunCreated
 
-Agent 开始执行任务。当 neuralink **首次**输出 `ResponseCreated` 事件时触发一次此事件。注意：该事件与 AgentResponseCreated 不互斥且先于 AgentResponseCreated 事件。
+当 Agent 开始执行任务时触发一次此事件。
 
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
 | type | "agent.run.created" | 事件类型，固定为 "agent.run.created" |
-| id | string | 响应对象的 ID |
+| run_id | string | 单次任务 id，一次任务中多轮对话使用同一个 run_id |
 
 #### AgentResponseCreated
 

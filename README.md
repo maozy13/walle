@@ -178,7 +178,7 @@ SDK 会自动把当前会话和工具 Schema 发送给模型、执行函数调�
 
 | 事件 | 含义 |
 | --- | --- |
-| `agent.run.created` | 整个 Agent 任务开始；每次查询仅触发一次 |
+| `agent.run.created` | 整个 Agent 任务开始；每次查询立即触发一次，并携带独立的 `run_id` |
 | `agent.response.created` | 一轮底层模型响应已创建 |
 | `agent.reasoning.changed` | 当前响应的推理正文或摘要发生变化 |
 | `agent.message.changed` | 当前响应的消息文本或拒答内容发生变化 |

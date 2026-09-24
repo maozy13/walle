@@ -6,6 +6,7 @@ import type {
   ResponseCustomToolCall,
   ResponseFunctionCall,
 } from "@maozy13/neuralink";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
   Conversation,
@@ -66,14 +67,14 @@ export class Agent {
     input: AgentInput,
     optional: AgentQueryOptions = {},
   ): AgentQuery {
+    yield { type: "agent.run.created", run_id: randomUUID() };
     const firstTaskItem = this.conversation.items.length;
     let modelInput = this.conversation.append(fromUserInput(input));
     const modelOptions = this.createModelOptions(optional);
-    const runState = { created: false };
 
     try {
       while (true) {
-        const response = yield* this.call(model, modelInput, modelOptions, runState);
+        const response = yield* this.call(model, modelInput, modelOptions);
         this.conversation.append(fromModelOutput(response.output));
         const calls = response.output.filter(
           (item): item is ResponseFunctionCall => item.type === "function_call",
@@ -128,14 +129,12 @@ export class Agent {
    * @param model Provider model identifier.
    * @param input Complete conversation input for this round.
    * @param optional Model settings including registered tools.
-   * @param runState Mutable state shared by every response in the current Agent task.
    * @returns WallE response events and the round's final response.
    */
   private async *call(
     model: string,
     input: ReturnType<Conversation["read"]>,
     optional: Optional,
-    runState: { created: boolean },
   ): AgentQuery {
     const stream = this.llm.call(model, input, optional);
     let accumulated: Response | undefined;
@@ -144,10 +143,6 @@ export class Agent {
       if (next.done) return next.value;
       const mapped = mapEvent(next.value, accumulated);
       accumulated = mapped.response;
-      if (next.value.type === "response.created" && !runState.created) {
-        runState.created = true;
-        yield { type: "agent.run.created", id: mapped.response.id ?? "" };
-      }
       if (mapped.event !== undefined) yield mapped.event;
     }
   }

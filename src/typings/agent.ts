@@ -33,8 +33,8 @@ export type AgentQueryOptions = Optional;
 export interface AgentRunCreated {
   /** Stable event discriminator. */
   type: "agent.run.created";
-  /** Identifier of the first model response in the task. */
-  id: string;
+  /** Stable identifier shared by every model round in this Agent task. */
+  run_id: string;
 }
 
 /** Base payload shared by WallE events that contain a model response. */
