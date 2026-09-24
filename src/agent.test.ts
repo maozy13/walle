@@ -205,17 +205,18 @@ describe("Agent", () => {
     }).query("model", "你好", { instructions: "简短回答" }));
 
     expect(result.events.map(({ type }) => type)).toEqual([
+      "agent.run.created",
       "agent.response.created",
-      "agent.response.changed",
-      "agent.response.changed",
-      "agent.response.completed",
+      "agent.message.changed",
+      "agent.message.changed",
+      "agent.run.completed",
     ]);
-    expect(result.events[1]?.response.output).toEqual([expect.objectContaining({
+    expect(result.events[2]).toMatchObject({ response: { output: [expect.objectContaining({
       content: { type: "output_text", text: "你" },
-    })]);
-    expect(result.events[2]?.response.output).toEqual([expect.objectContaining({
+    })] } });
+    expect(result.events[3]).toMatchObject({ response: { output: [expect.objectContaining({
       content: { type: "output_text", text: "你好" },
-    })]);
+    })] } });
     expect(result.events.every(({ id }) => id === "response-1")).toBe(true);
     expect(result.final).toBe(final);
     expect(call).toHaveBeenCalledWith("model", [{
@@ -491,6 +492,15 @@ describe("Agent", () => {
     expect(result.final).toBe(final);
     expect(call).toHaveBeenCalledTimes(3);
     expect(fc).toHaveBeenCalledTimes(3);
+    expect(result.events.map(({ type }) => type)).toEqual([
+      "agent.run.created",
+      "agent.response.created",
+      "agent.function_call.completed",
+      "agent.response.created",
+      "agent.function_call.completed",
+      "agent.response.created",
+      "agent.run.completed",
+    ]);
     expect(call.mock.calls[1]?.[1]).toEqual([
       expect.objectContaining({ type: "message", role: "user" }),
       ...firstCalls.map(({ id: _id, ...item }) => item),
@@ -574,23 +584,33 @@ describe("Agent", () => {
     const first = await consume(agent.query("model", "one"));
     const second = await consume(agent.query("model", "two"));
 
-    expect(first.events.at(-1)?.type).toBe("agent.response.failed");
-    expect(first.events[2]?.response.output).toEqual([expect.objectContaining({
+    expect(first.events.at(-1)?.type).toBe("agent.run.failed");
+    expect(first.events[3]).toMatchObject({ response: { output: [expect.objectContaining({
       content: { type: "refusal", refusal: "不行" },
-    })]);
-    expect(first.events[6]?.response.output).toEqual(expect.arrayContaining([
+    })] } });
+    expect(first.events[7]).toMatchObject({ response: { output: expect.arrayContaining([
       expect.objectContaining({
         content: { type: "reasoning_text", text: "详情" },
         summary: { type: "summary_text", text: "思考" },
       }),
-    ]));
-    expect(first.events[8]?.response.output).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "function_call", arguments: "{}" }),
-    ]));
-    expect(first.events[10]?.response.output).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "custom_tool_call", input: "pwd" }),
-    ]));
-    expect(second.events.at(-1)?.type).toBe("agent.response.incomplete");
+    ]) } });
+    expect(first.events.filter(({ type }) => type === "agent.message.changed")).toHaveLength(2);
+    expect(first.events.filter(({ type }) => type === "agent.reasoning.changed")).toHaveLength(4);
+    expect(second.events.at(-1)?.type).toBe("agent.run.incomplete");
+  });
+
+  it("maps a completed custom tool response to its dedicated event", async () => {
+    const final = response([customToolCall("custom-call", "shell", "pwd")]);
+    const result = await consume(createAgent({
+      llm: { call: () => lifecycle(final) },
+      tools: new Tools(),
+    }).query("model", "run"));
+
+    expect(result.events.map(({ type }) => type)).toEqual([
+      "agent.run.created",
+      "agent.response.created",
+      "agent.custom_tool_call.completed",
+    ]);
   });
 
   it.each([

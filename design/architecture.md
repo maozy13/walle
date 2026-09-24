@@ -56,15 +56,30 @@ class Agent {
 
 AgentEvent 可能是下列事件中的一种：
 
+- AgentRunCreated
 - AgentResponseCreated
-- AgentResponseChanged
-- AgentResponseCompleted
-- AgentResponseFailed
-- AgentResponseIncomplete
+- AgentReasoningChanged
+- AgentMessageChanged
+- AgentFunctionCallCompleted
+- AgentCustomToolCallCompleted
+- AgentRunCompleted
+- AgentRunFailed
+- AgentRunIncomplete
+
+#### AgentRunCreated
+
+Agent 开始执行任务。当 neuralink **首次**输出 `ResponseCreated` 事件时触发一次此事件。注意：该事件与 AgentResponseCreated 不互斥且先于 AgentResponseCreated 事件。
+
+**属性**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| type | "agent.run.created" | 事件类型，固定为 "agent.run.created" |
+| id | string | 响应对象的 ID |
 
 #### AgentResponseCreated
 
-初始化一个新的响应对象。neuralink 输出 `response.created` 事件时映射到此事件。
+Agent 开始新一轮的响应输出。当 neuralink 输出 `ResponseCreated` 事件时映射到此事件。
 
 **属性**
 
@@ -74,50 +89,86 @@ AgentEvent 可能是下列事件中的一种：
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
-#### AgentResponseChanged
+#### AgentMessageChanged
 
-单个响应对象发生更新。neuralink 输出 `response.*.added` 或 `response.*.delta` 事件时映射到此事件。
+单个响应对象发生更新。当 neuralink 输出 `ResponseMessageTextDelta` 事件时映射到此事件。
 
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
-| type | "agent.response.changed" | 事件类型，固定为 "agent.response.changed" |
+| type | "agent.message.changed" | 事件类型，固定为 "agent.message.changed" |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
-#### AgentResponseCompleted
+#### AgentReasoningChanged
 
-单个响应对象生成完成。neuralink 输出 `response.completed` 事件时映射到此事件。
+单个响应对象发生更新。当 neuralink 输出 `ResponseReasoningTextDelta` 事件或 `ResponseReasoningSummaryTextDelta` 事件时映射到此事件。
 
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
-| type | "agent.response.completed" | 事件类型，固定为 "agent.response.completed" |
+| type | "agent.reasoning.changed" | 事件类型，固定为 "agent.reasoning.changed" |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
-#### AgentResponseFailed
+#### AgentFunctionCallCompleted
 
-单个响应对象生成失败。neuralink 输出 `response.failed` 事件时映射到此事件。
+单个响应对象生成完成。当 neuralink 输出 `ResponseCompleted` 事件且事件对象的 `output[].type` 包含 `function_call` 时映射到此事件。
 
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
-| type | "agent.response.failed" | 事件类型，固定为 "agent.response.failed" |
+| type | "agent.function_call.completed" | 事件类型，固定为 "agent.function_call.completed" |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |
 
-#### AgentResponseIncomplete
+#### AgentCustomToolCallCompleted
 
-单个响应对象中断生成。neuralink 输出 `response.incomplete` 事件时映射到此事件。
+单个响应对象生成完成。当 neuralink 输出 `ResponseCompleted` 事件且事件对象的 `output[].type` 包含 `custom_tool_call` 时映射到此事件。
 
 **属性**
 
 | 属性 | 类型 | 说明 |
 | -- | -- | -- |
-| type | "agent.response.incomplete" | 事件类型，固定为 "agent.response.incomplete" |
+| type | "agent.custom_tool_call.completed" | 事件类型，固定为 "agent.custom_tool_call.completed" |
+| id | string | 响应对象的 ID |
+| response | object | 响应对象 |
+
+#### AgentRunCompleted
+
+Agent 完成任务并不再输出。当 neuralink 输出 `ResponseCompleted` 事件且事件对象的 `output[].type` 只包含 `message` 或 `reasoning` + `message` 时映射到此事件。
+
+**属性**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| type | "agent.run.completed" | 事件类型，固定为 "agent.run.completed" |
+| id | string | 响应对象的 ID |
+| response | object | 响应对象 |
+
+#### AgentRunFailed
+
+单个响应对象生成失败。当 neuralink 输出 `ResponseFailed` 事件时映射到此事件。
+
+**属性**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| type | "agent.run.failed" | 事件类型，固定为 "agent.run.failed" |
+| id | string | 响应对象的 ID |
+| response | object | 响应对象 |
+
+#### AgentRunIncomplete
+
+单个响应对象中断生成。当 neuralink 输出 `ResponseIncomplete` 事件时映射到此事件。
+
+**属性**
+
+| 属性 | 类型 | 说明 |
+| -- | -- | -- |
+| type | "agent.run.incomplete" | 事件类型，固定为 "agent.run.incomplete" |
 | id | string | 响应对象的 ID |
 | response | object | 响应对象 |

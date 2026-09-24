@@ -29,7 +29,15 @@ export type AgentInput = string | InputItem[];
 /** Optional settings accepted by a WallE model query. */
 export type AgentQueryOptions = Optional;
 
-/** Base payload shared by all WallE response events. */
+/** Event emitted once when an Agent task starts. */
+export interface AgentRunCreated {
+  /** Stable event discriminator. */
+  type: "agent.run.created";
+  /** Identifier of the first model response in the task. */
+  id: string;
+}
+
+/** Base payload shared by WallE events that contain a model response. */
 export interface AgentResponseEventBase {
   /** Model response identifier, or an empty string when the provider omits it. */
   id: string;
@@ -43,37 +51,59 @@ export interface AgentResponseCreated extends AgentResponseEventBase {
   type: "agent.response.created";
 }
 
-/** Event emitted when response output is added or changed. */
-export interface AgentResponseChanged extends AgentResponseEventBase {
+/** Event emitted when the reasoning output changes. */
+export interface AgentReasoningChanged extends AgentResponseEventBase {
   /** Stable event discriminator. */
-  type: "agent.response.changed";
+  type: "agent.reasoning.changed";
 }
 
-/** Event emitted when a model response completes. */
-export interface AgentResponseCompleted extends AgentResponseEventBase {
+/** Event emitted when the assistant message output changes. */
+export interface AgentMessageChanged extends AgentResponseEventBase {
   /** Stable event discriminator. */
-  type: "agent.response.completed";
+  type: "agent.message.changed";
 }
 
-/** Event emitted when a model response fails. */
-export interface AgentResponseFailed extends AgentResponseEventBase {
+/** Event emitted when a completed response requests a function tool. */
+export interface AgentFunctionCallCompleted extends AgentResponseEventBase {
   /** Stable event discriminator. */
-  type: "agent.response.failed";
+  type: "agent.function_call.completed";
 }
 
-/** Event emitted when a model response ends before completion. */
-export interface AgentResponseIncomplete extends AgentResponseEventBase {
+/** Event emitted when a completed response requests a custom tool. */
+export interface AgentCustomToolCallCompleted extends AgentResponseEventBase {
   /** Stable event discriminator. */
-  type: "agent.response.incomplete";
+  type: "agent.custom_tool_call.completed";
+}
+
+/** Event emitted when an Agent task completes without another tool round. */
+export interface AgentRunCompleted extends AgentResponseEventBase {
+  /** Stable event discriminator. */
+  type: "agent.run.completed";
+}
+
+/** Event emitted when an Agent task fails. */
+export interface AgentRunFailed extends AgentResponseEventBase {
+  /** Stable event discriminator. */
+  type: "agent.run.failed";
+}
+
+/** Event emitted when an Agent task ends before completion. */
+export interface AgentRunIncomplete extends AgentResponseEventBase {
+  /** Stable event discriminator. */
+  type: "agent.run.incomplete";
 }
 
 /** Any event emitted by a WallE agent query. */
 export type AgentEvent =
+  | AgentRunCreated
   | AgentResponseCreated
-  | AgentResponseChanged
-  | AgentResponseCompleted
-  | AgentResponseFailed
-  | AgentResponseIncomplete;
+  | AgentReasoningChanged
+  | AgentMessageChanged
+  | AgentFunctionCallCompleted
+  | AgentCustomToolCallCompleted
+  | AgentRunCompleted
+  | AgentRunFailed
+  | AgentRunIncomplete;
 
 /** Event stream returned by a WallE model query. */
 export type AgentQuery = AsyncGenerator<AgentEvent, Response>;

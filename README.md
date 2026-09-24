@@ -121,13 +121,14 @@ function responseText(response: Response): string {
 
 let rendered = "";
 for await (const event of agent.query("your-model", "用一句话介绍 WallE。")) {
+  if (event.type === "agent.run.created") continue;
   const next = responseText(event.response);
   if (next.startsWith(rendered)) {
     process.stdout.write(next.slice(rendered.length));
   }
   rendered = next;
 
-  if (event.type === "agent.response.failed") {
+  if (event.type === "agent.run.failed") {
     throw new Error("Model response failed");
   }
 }
@@ -177,13 +178,17 @@ SDK 会自动把当前会话和工具 Schema 发送给模型、执行函数调�
 
 | 事件 | 含义 |
 | --- | --- |
+| `agent.run.created` | 整个 Agent 任务开始；每次查询仅触发一次 |
 | `agent.response.created` | 一轮底层模型响应已创建 |
-| `agent.response.changed` | 当前响应的文本、推理或函数调用发生变化 |
-| `agent.response.completed` | 一轮底层模型响应完成 |
-| `agent.response.failed` | 一轮底层模型响应失败 |
-| `agent.response.incomplete` | 一轮底层模型响应提前结束 |
+| `agent.reasoning.changed` | 当前响应的推理正文或摘要发生变化 |
+| `agent.message.changed` | 当前响应的消息文本或拒答内容发生变化 |
+| `agent.function_call.completed` | 一轮响应完成并请求函数工具 |
+| `agent.custom_tool_call.completed` | 一轮响应完成并请求自定义工具 |
+| `agent.run.completed` | Agent 任务完成且不再请求工具 |
+| `agent.run.failed` | Agent 任务因模型响应失败而结束 |
+| `agent.run.incomplete` | Agent 任务因模型响应不完整而结束 |
 
-一次 Agent 任务可能包含多轮模型调用，因此可能产生多组 `created`、`changed` 和 `completed` 事件。应以异步生成器结束及其返回的 `Response` 作为整个任务结束的标志。
+一次 Agent 任务可能包含多轮模型调用，因此可能产生多组 `agent.response.created` 和工具完成事件，但只会产生一次 `agent.run.created`。应以异步生成器结束及其返回的 `Response` 作为整个任务结束的标志。
 
 如果业务既需要处理事件，又需要最终响应，可以使用以下消费方式：
 
@@ -405,7 +410,7 @@ for await (const event of agent.query("your-model", [{
     { type: "input_image", image_url: "https://example.com/image.png" },
   ],
 }])) {
-  if (event.type === "agent.response.completed") {
+  if (event.type === "agent.run.completed") {
     console.log(responseText(event.response));
   }
 }

@@ -69,10 +69,11 @@ export class Agent {
     const firstTaskItem = this.conversation.items.length;
     let modelInput = this.conversation.append(fromUserInput(input));
     const modelOptions = this.createModelOptions(optional);
+    const runState = { created: false };
 
     try {
       while (true) {
-        const response = yield* this.call(model, modelInput, modelOptions);
+        const response = yield* this.call(model, modelInput, modelOptions, runState);
         this.conversation.append(fromModelOutput(response.output));
         const calls = response.output.filter(
           (item): item is ResponseFunctionCall => item.type === "function_call",
@@ -127,12 +128,14 @@ export class Agent {
    * @param model Provider model identifier.
    * @param input Complete conversation input for this round.
    * @param optional Model settings including registered tools.
+   * @param runState Mutable state shared by every response in the current Agent task.
    * @returns WallE response events and the round's final response.
    */
   private async *call(
     model: string,
     input: ReturnType<Conversation["read"]>,
     optional: Optional,
+    runState: { created: boolean },
   ): AgentQuery {
     const stream = this.llm.call(model, input, optional);
     let accumulated: Response | undefined;
@@ -141,7 +144,11 @@ export class Agent {
       if (next.done) return next.value;
       const mapped = mapEvent(next.value, accumulated);
       accumulated = mapped.response;
-      yield mapped;
+      if (next.value.type === "response.created" && !runState.created) {
+        runState.created = true;
+        yield { type: "agent.run.created", id: mapped.response.id ?? "" };
+      }
+      if (mapped.event !== undefined) yield mapped.event;
     }
   }
 
@@ -195,20 +202,33 @@ export class Agent {
  * Maps a NeuralLink event and advances a detached response snapshot.
  * @param event Native NeuralLink event.
  * @param previous Previously accumulated response snapshot.
- * @returns WallE event containing the updated response snapshot.
+ * @returns Updated response and its optional public WallE event.
  */
-function mapEvent(event: ResponseEvent, previous: Response | undefined): AgentEvent {
+function mapEvent(
+  event: ResponseEvent,
+  previous: Response | undefined,
+): { response: Response; event?: AgentEvent } {
   if (event.type === "response.created") {
-    return createEvent("agent.response.created", cloneResponse(event.response));
+    const response = cloneResponse(event.response);
+    return { response, event: createEvent("agent.response.created", response) };
   }
   if (event.type === "response.completed") {
-    return createEvent("agent.response.completed", cloneResponse(event.response));
+    const response = cloneResponse(event.response);
+    const types = new Set(response.output.map(({ type }) => type));
+    const type = types.has("function_call")
+      ? "agent.function_call.completed"
+      : types.has("custom_tool_call")
+        ? "agent.custom_tool_call.completed"
+        : "agent.run.completed";
+    return { response, event: createEvent(type, response) };
   }
   if (event.type === "response.failed") {
-    return createEvent("agent.response.failed", cloneResponse(event.response));
+    const response = cloneResponse(event.response);
+    return { response, event: createEvent("agent.run.failed", response) };
   }
   if (event.type === "response.incomplete") {
-    return createEvent("agent.response.incomplete", cloneResponse(event.response));
+    const response = cloneResponse(event.response);
+    return { response, event: createEvent("agent.run.incomplete", response) };
   }
   if (previous === undefined) {
     throw new Error(`NeuralLink emitted ${event.type} before response.created`);
@@ -216,7 +236,15 @@ function mapEvent(event: ResponseEvent, previous: Response | undefined): AgentEv
 
   const response = cloneResponse(previous);
   applyChange(response, event);
-  return createEvent("agent.response.changed", response);
+  if (event.type === "response.reasoning_text.delta"
+    || event.type === "response.reasoning_summary_text.delta") {
+    return { response, event: createEvent("agent.reasoning.changed", response) };
+  }
+  if (event.type === "response.message_text.delta"
+    || event.type === "response.message_refusal.delta") {
+    return { response, event: createEvent("agent.message.changed", response) };
+  }
+  return { response };
 }
 
 /**

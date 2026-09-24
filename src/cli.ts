@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import { Agent } from "./agent.js";
 import { Conversation } from "./conversation.js";
-import type { AgentEvent } from "./typings/agent.js";
+import type { AgentEvent, AgentResponseEventBase } from "./typings/agent.js";
 import type {
   AgentCliConfig,
   AgentCliRuntime,
@@ -77,7 +77,7 @@ interface PersistedCliConfig {
 /** One JSON record stored in a session log. */
 type SessionLogRecord =
   | { type: "request"; request: string }
-  | { type: "response"; response: AgentEvent["response"] };
+  | { type: "response"; response: Response };
 
 /** Appends request and response records for one Agent session. */
 class SessionLogger {
@@ -171,6 +171,7 @@ class ResponsePrinter {
    * @param event Accumulated Agent response event.
    */
   public write(event: AgentEvent): void {
+    if (event.type === "agent.run.created") return;
     if (event.type === "agent.response.created") {
       this.reset();
       return;
@@ -179,7 +180,8 @@ class ResponsePrinter {
     this.writeReasoning(reasoningText(event));
     this.writeTools(event);
     this.writeAnswer(answerText(event));
-    if (event.type !== "agent.response.changed") this.finishReasoning();
+    if (event.type !== "agent.message.changed"
+      && event.type !== "agent.reasoning.changed") this.finishReasoning();
   }
 
   /** Resets accumulated output state for a new model response. */
@@ -211,7 +213,7 @@ class ResponsePrinter {
    * Prints newly selected tool names without their parameters.
    * @param event Accumulated Agent response event.
    */
-  private writeTools(event: AgentEvent): void {
+  private writeTools(event: AgentResponseEventBase): void {
     for (const item of event.response.output) {
       if (item.type !== "function_call" || this.tools.has(item.call_id)) continue;
       this.finishReasoning();
@@ -419,7 +421,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param event Agent response event to render.
  * @returns Concatenated reasoning text.
  */
-function reasoningText(event: AgentEvent): string {
+function reasoningText(event: AgentResponseEventBase): string {
   return event.response.output
     .filter((item) => item.type === "reasoning")
     .map((item) => item.summary.text === "" ? item.content.text : item.summary.text)
@@ -431,7 +433,7 @@ function reasoningText(event: AgentEvent): string {
  * @param event Agent response event to render.
  * @returns Concatenated visible answer text.
  */
-function answerText(event: AgentEvent): string {
+function answerText(event: AgentResponseEventBase): string {
   return event.response.output
     .filter((item) => item.type === "message")
     .map((item) => item.content.type === "output_text"
@@ -494,7 +496,10 @@ async function runTurn(
   const printer = new ResponsePrinter(output, now);
   for await (const event of agent.query(model, input)) {
     printer.write(event);
-    if (event.type !== "agent.response.changed" && event.type !== "agent.response.created") {
+    if (event.type !== "agent.run.created"
+      && event.type !== "agent.message.changed"
+      && event.type !== "agent.reasoning.changed"
+      && event.type !== "agent.response.created") {
       logger?.append({ type: "response", response: event.response });
     }
   }
